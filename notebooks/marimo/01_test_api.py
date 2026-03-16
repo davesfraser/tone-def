@@ -19,7 +19,7 @@ def _():
 
 @app.cell
 def _(SYSTEM_PROMPT):
-    print(SYSTEM_PROMPT[:1000])
+    print(SYSTEM_PROMPT[:500])
     return
 
 

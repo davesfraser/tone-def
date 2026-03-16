@@ -232,7 +232,7 @@ ignore = [
 
 # marimo files are exploratory / notebook-like.
 # Keep them clean, but don't force full production-style typing there
-"notebooks/marimo/**/*.py" = ["ANN", "F401", "F841"]
+"notebooks/**/*.py" = ["ANN", "F401", "F841"]
 
 # Re-exports in __init__.py are normal
 "__init__.py" = ["F401"]
