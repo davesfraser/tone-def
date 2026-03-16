@@ -27,7 +27,12 @@ license = { file = "LICENSE" }
 
 # settings.py uses pydantic-settings for typed, auditable runtime configuration
 # This handles .env loading, environment variable overrides, and type coercion
-dependencies = ["pydantic-settings"]
+dependencies = [
+    "anthropic>=0.84.0",
+    "prompt>=0.4.1",
+    "pydantic-settings",
+    "python-dotenv>=1.2.2",
+]
 
 [dependency-groups]
 # Dev-only tools: linting, typing, tests, coverage, hooks
