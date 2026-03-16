@@ -1,0 +1,30 @@
+root = true
+
+[*]
+# Use UTF-8 everywhere
+charset = utf-8
+
+# Use Unix line endings (not windows) by default
+# Git and tooling usually handle this better across machines
+end_of_line = lf
+
+# End files with a newline
+# Small thing, but lots of tools expect it
+insert_final_newline = true
+
+# Remove useless trailing spaces
+trim_trailing_whitespace = true
+
+[*.py]
+# Standard Python indentation
+indent_style = space
+indent_size = 4
+
+[*.toml]
+# TOML files are usually easier to read with 2 spaces
+indent_style = space
+indent_size = 2
+
+[*.md]
+# Markdown sometimes uses trailing spaces on purpose
+trim_trailing_whitespace = false

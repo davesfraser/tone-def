@@ -1,0 +1,65 @@
+# Python bytecode and cache folders
+# These are auto-generated and should not be committed
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+# Local machine setup only
+.venv/
+venv/
+
+# Tool caches and local test artifacts
+# Safe to delete, should stay out of git
+.pytest_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+.ty/
+.mypy_cache/
+
+# Editor-specific folders
+# Personal workspace settings, not project source
+.vscode/.ropeproject
+.idea/
+
+# OS-generated junk files
+.DS_Store
+Thumbs.db
+
+# Environment files
+# Often contain secrets or machine-specific config
+.env
+.env.*
+
+# Data files
+# Keep binary data (aka non-code) out of git repo as much as possible
+# Usually too large and/or not appropriate for version control
+data/raw/*
+data/interim/*
+data/processed/*
+data/external/*
+
+# Keep the folder structure in the repo
+# .gitkeep lets empty folders exist in git
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+
+# Model files and generated figures
+# These are outputs/binary data not source code
+models/*
+reports/figures/*
+!reports/figures/README.md
+
+# Keep these folders present in the template
+!models/.gitkeep
+!reports/figures/.gitkeep
+
+# Local template render target — throwaway, never commit
+.rendered/

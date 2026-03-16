@@ -1,0 +1,65 @@
+# Runs automatically before each commit
+# Catches the easy stuff locally so it doesn't waste CI time or show up in review
+
+repos:
+  # General file hygiene — fast, no dependencies
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+      # DS projects often accidentally stage CSVs, Parquet files, or model
+      # binaries. This stops them before they bloat the repo history forever
+      - id: check-added-large-files
+        args: ["--maxkb=2000"]
+
+      # Catches private keys and PEM blocks — important if your project
+      # touches API keys, cloud credentials, or database passwords via .env
+      - id: detect-private-key
+
+      # Prevents filename collisions on case-insensitive filesystems
+      # (macOS, Windows). data.py and Data.py coexist on Linux but not elsewhere
+      - id: check-case-conflict
+
+      - id: check-toml
+      - id: check-yaml
+
+      # The root config had TOML and YAML checks but missed JSON.
+      # .vscode/settings.json and any config files will be validated too
+      - id: check-json
+
+      # Catches Python syntax errors before anything heavier runs
+      - id: check-ast
+
+      - id: check-merge-conflict
+
+      # Catches leftover breakpoint() or pdb.set_trace() calls
+      - id: debug-statements
+
+  # Keeps uv.lock in sync with pyproject.toml
+  # If this fails, pyproject.toml changed but the lockfile wasn't updated
+  # The hook fixes it automatically — just `git add uv.lock` and commit again
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.10.8
+    hooks:
+      - id: uv-lock
+
+  # Ruff handles both linting and formatting in one tool
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      # Auto-fixes what's safe to fix. The --exit-non-zero-on-fix flag means
+      # the commit still aborts even after a fix, so you review and re-stage
+      # rather than silently accepting machine edits
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(src|tests|notebooks)/
+
+      # Runs after ruff-check so any auto-fixed imports also get formatted
+      - id: ruff-format
+
+  # mypy is run in CI rather than as a pre-commit hook
+  # Running mypy before every commit adds several seconds to every commit
+  # for errors that are caught in CI anyway
+  # Run it locally when needed with: uv run mypy src tests
