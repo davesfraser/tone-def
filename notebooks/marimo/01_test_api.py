@@ -26,7 +26,7 @@ def _(SYSTEM_PROMPT):
 @app.cell
 def _(SYSTEM_PROMPT, anthropic, os):
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    test_query = "I want Buddy Guy's tone from the 'A man with the blues' album"
+    test_query = "Give me Eric Clapton's tone from John Mayall's Blues Breakers album 'Beano'"
 
     # Until such time that we have something to place into context, we'll overwrite with nothing
     system = SYSTEM_PROMPT.replace("{{TAVILY_RESULTS}}", "No context retrieved.")
