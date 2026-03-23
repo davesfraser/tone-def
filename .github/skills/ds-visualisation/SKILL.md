@@ -50,7 +50,7 @@ RULE: Area must be proportional to value in area-based charts — scaling bubble
 
 RULE: Use sequential palettes for continuous magnitude data.
 RULE: Use diverging palettes for data with a meaningful centre such as deviation from a target.
-RULE: Use qualitative palettes for distinct categories — limit to 5–7 colours maximum before perception degrades.
+RULE: Use qualitative palettes for distinct categories — limit to 5-7 colours maximum before perception degrades.
 RULE: Never use red/green as the only distinguishing encoding — check all figures with a colour blindness simulator.
 RULE: Use `viridis` as the default sequential palette — it is perceptually uniform and colour-blindness safe.
 

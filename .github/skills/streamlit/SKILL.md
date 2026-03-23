@@ -47,7 +47,7 @@ RULE: Each page file follows the same rule as `app.py` — layout and wiring onl
 RULE: Shared state between pages must go through `st.session_state` — page files cannot import from each other.
 RULE: Use `st.sidebar` for navigation controls and filters that apply across the whole app.
 RULE: Use `st.tabs` for alternative views within a single page — not for content that belongs on separate pages.
-RULE: Use `st.columns` for side-by-side layout within a page — keep column splits simple (2–3 columns maximum).
+RULE: Use `st.columns` for side-by-side layout within a page — keep column splits simple (2-3 columns maximum).
 
 ---
 
