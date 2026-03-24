@@ -11,7 +11,7 @@ def _():
     import anthropic
     from dotenv import load_dotenv
 
-    from tonedef.prompt import SYSTEM_PROMPT
+    from tonedef.prompts import SYSTEM_PROMPT
 
     load_dotenv()
     return SYSTEM_PROMPT, anthropic, os

@@ -4,7 +4,7 @@ import anthropic
 import streamlit as st
 from dotenv import load_dotenv
 
-from tonedef.prompt import SYSTEM_PROMPT
+from tonedef.prompts import SYSTEM_PROMPT
 
 load_dotenv()
 

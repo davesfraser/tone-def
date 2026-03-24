@@ -54,7 +54,9 @@ to recreate the recording, but as an explanation of its likely construction.
 
 AMP_ONLY
 Use when the query references a guitarist's general sound, style, or genre.
-Model the live playing signal chain only.
+Model the live playing signal chain only. Excludes recording chain and studio
+processing but always includes cabinet and mic selection — a signal chain
+without a cabinet is incomplete.
 
 If ambiguous, choose AMP_ONLY and briefly note the assumption.
 Always honour explicit user preference.
@@ -118,6 +120,23 @@ Parameter values not drawn from documented sources should include (estimated).
   inventing specific hardware
 </constraints>
 
+<cabinet_and_mic>
+Every signal chain must include a cabinet and microphone recommendation.
+This applies to both AMP_ONLY and FULL_PRODUCTION queries.
+
+For the cabinet, identify:
+* Cabinet type and speaker configuration (e.g. 2x12 open back, 4x12 closed back)
+* Speaker model where known (e.g. Celestion Greenback, Alnico Blue)
+
+For the microphone, identify:
+* Microphone model (e.g. Shure SM57, Royer R-121)
+* Placement (e.g. edge of dust cap, slightly off-axis)
+
+Apply provenance labels as with all other units. For AMP_ONLY queries infer
+the most appropriate cabinet and mic from the amp choice and genre context —
+this information is well documented for most classic amp and cabinet pairings.
+</cabinet_and_mic>
+
 <mastering_guidance>
 For FULL_PRODUCTION queries, studio processing should reflect the audible
 characteristics of the recording rather than a generic mix chain. Describe how
@@ -134,13 +153,13 @@ this way and note the basis in the CONFIDENCE line.
 <output_format>
 Wrap the entire output in <signal_chain></signal_chain> XML tags.
 
-For AMP_ONLY queries use one SIGNAL CHAIN section.
-For FULL_PRODUCTION queries use:
-GUITAR SIGNAL CHAIN, RECORDING CHAIN, STUDIO PROCESSING.
+For AMP_ONLY queries use two sections: SIGNAL CHAIN and CABINET AND MIC.
+For FULL_PRODUCTION queries use four sections:
+GUITAR SIGNAL CHAIN, CABINET AND MIC, RECORDING CHAIN, STUDIO PROCESSING.
 
 Chain type: [AMP_ONLY or FULL_PRODUCTION] — [one sentence reason]
 
-SIGNAL CHAIN (or section label)
+SIGNAL CHAIN (or GUITAR SIGNAL CHAIN for FULL_PRODUCTION)
 
 [ Unit name — unit type ] [DOCUMENTED/INFERRED/ESTIMATED]
   ◆ [Parameter]: [value]
@@ -149,6 +168,20 @@ SIGNAL CHAIN (or section label)
 [ Next unit — type ] [DOCUMENTED/INFERRED/ESTIMATED]
   ◆ [Parameter]: [value]
     └─ [what adjusting this does]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CABINET AND MIC
+
+[ Cabinet — cabinet type ] [DOCUMENTED/INFERRED/ESTIMATED]
+  ◆ Configuration: [e.g. 2x12 open back]
+    └─ [how this shapes the tone]
+  ◆ Speaker: [e.g. Celestion Alnico Blue]
+    └─ [tonal character of this speaker]
+          ↓
+[ Microphone — microphone type ] [DOCUMENTED/INFERRED/ESTIMATED]
+  ◆ Placement: [e.g. edge of dust cap, slightly off-axis]
+    └─ [what this placement does to the sound]
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -191,12 +224,22 @@ GUITAR SIGNAL CHAIN
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-RECORDING CHAIN
+CABINET AND MIC
 
+[ Vox 2x12 — open back cabinet ] [DOCUMENTED]
+  ◆ Configuration: 2x12 open back
+    └─ Open back design contributes to the airy, less focused low end
+  ◆ Speaker: Celestion Alnico Blue
+    └─ Bright, chiming top end with smooth breakup characteristic of the AC30 sound
+          ↓
 [ Shure SM57 — dynamic microphone ] [INFERRED]
   ◆ Placement: edge of dust cap, slightly off-axis (estimated)
     └─ Off-axis softens the SM57's high frequency presence peak
-          ↓
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+RECORDING CHAIN
+
 [ Neve 1073 — microphone preamp and EQ ] [INFERRED]
   ◆ Gain: approximately +40dB (estimated)
     └─ Neve preamp circuitry adds warmth and harmonic density at capture
@@ -250,4 +293,39 @@ CONFIDENCE: MEDIUM — guitar signal chain and amp well documented; recording an
 studio processing inferred from known Lanois/Eno production techniques of the era
 </signal_chain>
 </example>
+"""
+
+MAPPING_PROMPT = """
+Below is a list of Guitar Rig 7 component names. For each component, provide a
+mapping to the real-world hardware it is based on.
+
+Return a JSON array. Each element must have exactly these fields:
+
+{{
+  "component_name": "exact Guitar Rig component name as given",
+  "hardware_aliases": [
+    "Primary hardware name e.g. Vox AC30",
+    "Alternative name or variant e.g. Vox AC30 Top Boost"
+  ],
+  "hardware_type": "one of: tube amplifier, solid state amplifier, overdrive pedal, distortion pedal, fuzz pedal, compressor pedal, delay pedal, reverb pedal, modulation pedal, equaliser, noise gate, cabinet simulation, microphone, utility",
+  "confidence": "one of: documented, inferred, estimated",
+  "rationale": "one sentence explaining the mapping and confidence level"
+}}
+
+Confidence levels:
+- documented: confirmed in NI documentation, marketing materials, or
+  well-established community knowledge
+- inferred: component characteristics strongly suggest a specific hardware unit
+  but not officially confirmed
+- estimated: generic type with no clear single hardware reference
+
+Rules:
+- hardware_aliases must contain at least one entry
+- For generic components with no real-world hardware equivalent, use the
+  component name as the primary alias and set confidence to estimated
+- Do not invent hardware that does not exist
+- Return ONLY the JSON array, no preamble or explanation
+
+Guitar Rig 7 components to map:
+{component_list}
 """
