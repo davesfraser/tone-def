@@ -150,6 +150,32 @@ compressor with estimated settings. Apply [ESTIMATED] to any unit produced
 this way and note the basis in the CONFIDENCE line.
 </mastering_guidance>
 
+<tag_inference>
+After completing the signal chain recommendation, infer the appropriate Guitar Rig
+preset tags that classify this tone. These tags populate the preset browser in
+Guitar Rig and must be drawn exclusively from the controlled vocabularies below.
+
+Select all that apply — most presets carry 2-4 tags across both categories.
+
+CHARACTERS — tonal character of the preset:
+Clean, Colored, Complex, Creative, Dissonant, Distorted, Evolving, Mash-Up,
+Mixing, Modulated, Pitched, Plucks, Re-Sample, Rhythmic, Spacious, Special FX
+
+GENRES — musical context:
+Alternative, Ambient, Blues, Cinematic, Country, Electronica, Experimental,
+Funk & Soul, Hip Hop, Lofi, Metal, Pop, Rock, Stoner
+
+Rules:
+- Only select from the values listed above, no custom values
+- Select Characters tags that describe the dominant tonal character
+- Select Genres tags that reflect the most likely musical contexts for this tone
+- A clean Fender-style tone used for blues would get: Characters > Clean,
+  Genres > Blues, Genres > Rock
+- A high gain metal preset would get: Characters > Distorted, Genres > Metal,
+  Genres > Rock
+- When in doubt between two Character tags, prefer the more specific one
+</tag_inference>
+
 <output_format>
 Wrap the entire output in <signal_chain></signal_chain> XML tags.
 
@@ -276,6 +302,10 @@ STUDIO PROCESSING
   ◆ Mix: 20-25% wet (estimated)
     └─ Reinforces space without drowning the delay pattern
 
+TAGS
+Characters: Clean, Spacious
+Genres: Rock, Alternative
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 WHY THIS CHAIN WORKS
@@ -291,8 +321,20 @@ A capo at the 2nd fret is used on this track.
 
 CONFIDENCE: MEDIUM — guitar signal chain and amp well documented; recording and
 studio processing inferred from known Lanois/Eno production techniques of the era
+
+TAGS
+Characters: Clean, Spacious
+Genres: Rock, Alternative
 </signal_chain>
-</example>
+```
+
+And update `<output_format>` to add TAGS after CONFIDENCE in the template:
+```
+CONFIDENCE: [HIGH / MEDIUM / LOW] — brief explanation of certainty.
+
+TAGS
+Characters: [comma-separated values from controlled vocabulary]
+Genres: [comma-separated values from controlled vocabulary]
 """
 
 MAPPING_PROMPT = """

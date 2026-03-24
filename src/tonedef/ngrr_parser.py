@@ -263,3 +263,196 @@ def finalise_catalogue(catalogue: dict) -> dict:
         entry["parameters"] = params
         finalised[name] = entry
     return finalised
+
+
+def extract_xml1(path: str | Path) -> str | None:
+    """
+    Extract the guitarrig7-database-info XML block from an .ngrr binary file.
+
+    Args:
+        path: Path to the .ngrr file.
+
+    Returns:
+        The XML1 content as a UTF-8 string, or None if not found.
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+
+    xml1_start = data.find(b"<?xml")
+    xml1_end = data.find(b"</guitarrig7-database-info>") + len(b"</guitarrig7-database-info>")
+
+    if xml1_start == -1 or xml1_end == -1:
+        return None
+
+    return data[xml1_start:xml1_end].decode("utf-8", errors="replace")
+
+
+# Tag categories to include - Amplifiers excluded as redundant with component mapping
+INCLUDED_TAG_ROOTS = {"Characters", "FX Types", "Genres", "Input Sources"}
+
+
+def parse_preset_metadata(xml1: str) -> dict:
+    """
+    Parse the guitarrig7-database-info XML block and return preset metadata.
+
+    Extracts name, author, comment, and tags. Tags are filtered to exclude
+    the Amplifiers category which is redundant with component mapping.
+
+    Each tag entry has:
+        value      - display value (e.g. "Rock")
+        path       - full hierarchical path (e.g. "Genres > Rock")
+        root       - top-level category (e.g. "Genres")
+
+    Args:
+        xml1: The guitarrig7-database-info XML string from extract_xml1().
+
+    Returns:
+        Dict with keys: name, author, comment, tags, is_factory.
+    """
+    from xml.etree import ElementTree as ET
+
+    try:
+        root = ET.fromstring(xml1)
+    except ET.ParseError:
+        return {}
+
+    soundinfo = root.find(".//soundinfo")
+    if soundinfo is None:
+        return {}
+
+    props = soundinfo.find("properties")
+    name = ""
+    author = ""
+    comment = ""
+
+    if props is not None:
+        for tag in ("name", "n"):
+            el = props.find(tag)
+            if el is not None and el.text:
+                name = el.text.strip()
+                break
+        author_el = props.find("author")
+        if author_el is not None and author_el.text:
+            author = author_el.text.strip()
+        comment_el = props.find("comment")
+        if comment_el is not None and comment_el.text:
+            comment = comment_el.text.strip()
+
+    tags = []
+    is_factory = False
+
+    for attr in root.findall(".//attribute"):
+        value_el = attr.find("value")
+        user_set_el = attr.find("user-set")
+
+        if value_el is None or not value_el.text:
+            continue
+
+        value = value_el.text.strip()
+
+        # Detect factory flag
+        if value == "factory":
+            is_factory = True
+            continue
+
+        # Skip bare category headers and utility tags
+        if value in ("Effect", "curated", "UserSpace"):
+            continue
+
+        if user_set_el is None or not user_set_el.text:
+            continue
+
+        user_set = user_set_el.text.strip()
+
+        # Parse the hierarchical path — tab-separated after RP://
+        if not user_set.startswith("RP://"):
+            continue
+
+        path_parts = user_set[5:].split("\t")
+        root_category = path_parts[0].strip()
+
+        if root_category not in INCLUDED_TAG_ROOTS:
+            continue
+
+        # Skip bare root category entries (e.g. just "RP://Genres")
+        if len(path_parts) < 2:
+            continue
+
+        # Build human-readable path
+        human_path = " > ".join(p.strip() for p in path_parts)
+
+        tags.append(
+            {
+                "value": value,
+                "path": human_path,
+                "root": root_category,
+            }
+        )
+
+    return {
+        "name": name,
+        "author": author,
+        "comment": comment,
+        "tags": tags,
+        "is_factory": is_factory,
+    }
+
+
+def merge_tags_into_catalogue(catalogue: dict, metadata: dict) -> dict:
+    """
+    Merge parsed preset metadata into the running tag catalogue.
+
+    Catalogue entries have the form:
+        {
+            "value": "Rock",
+            "root": "Genres",
+            "path": "Genres > Rock",
+            "occurrence_count": 42,
+            "seen_in_presets": ["80s Stadium Rig", ...]
+        }
+
+    Args:
+        catalogue: Running tag catalogue keyed by (root, value) tuple string.
+        metadata: Output of parse_preset_metadata() for one preset.
+
+    Returns:
+        Updated catalogue dict.
+    """
+    preset_name = metadata.get("name", "")
+
+    for tag in metadata.get("tags", []):
+        key = f"{tag['root']}::{tag['value']}"
+
+        if key not in catalogue:
+            catalogue[key] = {
+                "value": tag["value"],
+                "root": tag["root"],
+                "path": tag["path"],
+                "occurrence_count": 0,
+                "seen_in_presets": [],
+            }
+
+        entry = catalogue[key]
+        entry["occurrence_count"] += 1
+        if preset_name and preset_name not in entry["seen_in_presets"]:
+            entry["seen_in_presets"].append(preset_name)
+
+    return catalogue
+
+
+def finalise_tag_catalogue(catalogue: dict) -> dict:
+    """
+    Sort and finalise the tag catalogue for serialisation.
+
+    Sorts by root category then by occurrence count descending so the
+    most common tags appear first within each category.
+
+    Args:
+        catalogue: Running catalogue from merge_tags_into_catalogue().
+
+    Returns:
+        Finalised catalogue as a list of tag entries sorted by root and frequency.
+    """
+    entries = list(catalogue.values())
+    entries.sort(key=lambda e: (e["root"], -e["occurrence_count"]))
+    return entries
