@@ -29,6 +29,7 @@ license = { file = "LICENSE" }
 # This handles .env loading, environment variable overrides, and type coercion
 dependencies = [
     "anthropic>=0.84.0",
+    "chromadb>=1.5.5",
     "pdfplumber>=0.11.9",
     "prompt>=0.4.1",
     "pydantic-settings",

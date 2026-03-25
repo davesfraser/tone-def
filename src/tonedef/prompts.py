@@ -371,3 +371,218 @@ Rules:
 Guitar Rig 7 components to map:
 {component_list}
 """
+
+COMPONENT_SELECTION_PROMPT = """
+<task>
+You are the component selection stage of the ToneDef preset generator.
+
+You have been given a human-readable signal chain recommendation (Phase 1 output)
+and must map each piece of hardware to its Guitar Rig 7 equivalent, then produce
+normalised parameter values for each component.
+
+Return a JSON array — nothing else. No preamble, no explanation, no markdown fences.
+</task>
+
+<signal_chain>
+{{SIGNAL_CHAIN}}
+</signal_chain>
+
+<hardware_mapping>
+The following table maps real-world hardware names to Guitar Rig 7 components.
+Format: hardware_name | component_name | component_id | confidence
+
+{{HARDWARE_MAPPING}}
+</hardware_mapping>
+
+<component_candidates>
+Descriptions from the Guitar Rig 7 manual for candidate components. Use these to
+select the correct variant when multiple GR7 components map to the same hardware
+(e.g. Cool Plex vs Hot Plex for a Marshall Plexi).
+
+{{COMPONENT_CANDIDATES}}
+</component_candidates>
+
+<component_schema>
+Parameter definitions for each candidate component. Each entry lists:
+param_id (the XML key) | param_name (display label) | default_value
+
+Include ALL parameters in your output — use default_value for any parameter
+not specified in the signal chain.
+
+{{COMPONENT_SCHEMA}}
+</component_schema>
+
+<parameter_conversion>
+Convert all hardware parameter values to normalised 0.0-1.0 floats.
+
+CLOCK POSITIONS
+A clock face runs 7 o'clock (fully counter-clockwise = 0.0) to 5 o'clock
+(fully clockwise = 1.0), with 12 o'clock = 0.5.
+Conversion: (hour_on_12h_clock - 7) / 10  — treating positions past 12 as
+continuing past 12 (so 1 o'clock = 0.6, 2 o'clock = 0.7, 3 o'clock = 0.8).
+For ranges like "2-3 o'clock", use the midpoint (0.75).
+
+Examples:
+  7 o'clock  → 0.0
+  9 o'clock  → 0.2
+  10 o'clock → 0.3
+  12 o'clock → 0.5
+  2 o'clock  → 0.7
+  3 o'clock  → 0.8
+  5 o'clock  → 1.0
+
+0-10 KNOB SCALES
+Divide by 10: value 7 → 0.7, value 5 → 0.5.
+
+NAMED POSITIONS / SWITCHES
+Map to 0.0 (off / minimum / clean) or 1.0 (on / maximum / drive) by context.
+Boolean on/off parameters: 1.0 = on, 0.0 = off.
+
+MISSING PARAMETERS
+If a parameter is not mentioned in the signal chain and has no contextual basis
+for estimation, use the default_value from the component schema.
+</parameter_conversion>
+
+<selection_rules>
+1. Map every hardware unit in the SIGNAL CHAIN and GUITAR SIGNAL CHAIN sections
+   to a GR7 component using the hardware_mapping table.
+2. Skip RECORDING CHAIN and STUDIO PROCESSING sections entirely — those units
+   are not modelled in Guitar Rig.
+3. For the CABINET AND MIC section, always emit exactly one cabinet component
+   using component_id 88000 (Matched Cabinet) with all default parameter values.
+   Do not attempt to map the specific cabinet or microphone hardware.
+4. When multiple GR7 variants exist for the same hardware (e.g. Cool Plex vs
+   Hot Plex for a Marshall Plexi), use the component_candidates descriptions
+   to select the best match for the tonal context of the signal chain.
+5. If a hardware unit has no match in the hardware_mapping table, omit it
+   rather than guessing a component_id.
+6. Preserve signal chain order: pedals first, then amp, then cabinet last.
+7. Do not include routing utilities (Split, CrossOver, Container) unless they
+   were explicitly part of the hardware chain.
+</selection_rules>
+
+<output_schema>
+Return a JSON array. Each element must have exactly these fields:
+{
+  "component_name": "exact GR7 component name as in hardware_mapping",
+  "component_id": <integer>,
+  "hardware_source": "hardware name as described in the signal chain",
+  "confidence": "documented" | "inferred" | "estimated",
+  "parameters": {
+    "<param_id>": <float>,
+    ...
+  }
+}
+
+Constraints:
+- All param_id keys must exactly match those in the component_schema.
+- All parameter values must be floats in the range [0.0, 1.0].
+- The parameters object must include every parameter listed in the component_schema.
+</output_schema>
+
+<example>
+Signal chain mentions: Vox AC30, Treble: 2 o'clock, Bass: 10 o'clock, Volume: 2-3 o'clock
+Mapping entry: Vox AC30 | AC Box | 38000 | documented
+
+Output element:
+{
+  "component_name": "AC Box",
+  "component_id": 38000,
+  "hardware_source": "Vox AC30",
+  "confidence": "documented",
+  "parameters": {
+    "Pwr": 1.0,
+    "CASSt": 0.0,
+    "Vol": 0.75,
+    "Br": 0.7,
+    "Tb": 0.7,
+    "Bs": 0.25,
+    "Tc": 0.2,
+    "TSp": 0.44762,
+    "TDt": 0.0
+  }
+}
+</example>
+"""
+
+DESCRIPTOR_SELECTION_PROMPT = """
+<task>
+You are the component selection stage of the ToneDef preset generator.
+
+The user's query did not reference specific hardware. Instead, a tonal descriptor
+has been retrieved from the Guitar Rig 7 manual — a list of GR7 components whose
+descriptions best match the requested tone.
+
+Select the most appropriate components from the retrieved candidates to build a
+signal chain that matches the tonal description. Then produce normalised parameter
+values for each selected component.
+
+Return a JSON array — nothing else. No preamble, no explanation, no markdown fences.
+</task>
+
+<tonal_description>
+{{TONAL_DESCRIPTION}}
+</tonal_description>
+
+<retrieved_candidates>
+The following GR7 components were retrieved by semantic similarity to the tonal
+description. Each entry contains the component name, category, and a description
+from the Guitar Rig 7 manual.
+
+{{RETRIEVED_CANDIDATES}}
+</retrieved_candidates>
+
+<component_schema>
+Parameter definitions for the retrieved candidate components. Each entry lists:
+param_id (the XML key) | param_name (display label) | default_value
+
+{{COMPONENT_SCHEMA}}
+</component_schema>
+
+<parameter_conversion>
+Convert all parameter values to normalised 0.0-1.0 floats.
+
+Set parameters to values that match the tonal description. For example:
+- "bright" → treble/brilliance parameters toward higher values (0.6-0.8)
+- "warm" or "dark" → treble parameters toward lower values (0.2-0.4)
+- "clean" → gain/drive parameters low (0.1-0.3)
+- "overdriven" / "crunchy" → gain/drive parameters mid-range (0.5-0.7)
+- "high gain" / "saturated" → gain/drive parameters high (0.7-1.0)
+- "spacious" / "ambient" → reverb mix high (0.5-0.8)
+- "dry" → reverb/delay mix low (0.0-0.2)
+
+For parameters not relevant to the tonal description, use default_value from
+the component schema.
+</parameter_conversion>
+
+<selection_rules>
+1. Build a complete guitar signal chain: pedals (if any) → amp → cabinet.
+2. Always include exactly one cabinet component using component_id 88000
+   (Matched Cabinet) as the final component.
+3. Prefer simpler chains (2-4 components) over complex multi-component rigs
+   unless the tonal description explicitly calls for multiple effects.
+4. Do not include routing utilities (Split, CrossOver, Container).
+5. Preserve a logical signal order: distortion/drive pedals → modulation → amp → cabinet.
+6. Select the single best-fit variant when similar components exist
+   (e.g. choose one Plex variant, not both).
+</selection_rules>
+
+<output_schema>
+Return a JSON array. Each element must have exactly these fields:
+{
+  "component_name": "exact GR7 component name",
+  "component_id": <integer>,
+  "hardware_source": "descriptor",
+  "confidence": "estimated",
+  "parameters": {
+    "<param_id>": <float>,
+    ...
+  }
+}
+
+Constraints:
+- All param_id keys must exactly match those in the component_schema.
+- All parameter values must be floats in the range [0.0, 1.0].
+- The parameters object must include every parameter listed in the component_schema.
+</output_schema>
+"""
