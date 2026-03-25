@@ -412,10 +412,17 @@ not specified in the signal chain.
 {{COMPONENT_SCHEMA}}
 </component_schema>
 
-<parameter_conversion>
-Convert all hardware parameter values to normalised 0.0-1.0 floats.
+<exemplar_presets>
+Real Guitar Rig factory presets with similar tonal characteristics. Use these
+as a reference for realistic parameter value combinations. Format:
 
-CLOCK POSITIONS
+  [Tags] -- Preset Name
+    Component Name (component_id): param1=val  param2=val ...
+
+{{EXEMPLAR_PRESETS}}
+</exemplar_presets>
+
+<parameter_conversion>
 A clock face runs 7 o'clock (fully counter-clockwise = 0.0) to 5 o'clock
 (fully clockwise = 1.0), with 12 o'clock = 0.5.
 Conversion: (hour_on_12h_clock - 7) / 10  — treating positions past 12 as
@@ -538,6 +545,16 @@ param_id (the XML key) | param_name (display label) | default_value
 
 {{COMPONENT_SCHEMA}}
 </component_schema>
+
+<exemplar_presets>
+Real Guitar Rig factory presets with similar tonal characteristics. Use these
+as a reference for realistic parameter value combinations. Format:
+
+  [Tags] -- Preset Name
+    Component Name (component_id): param1=val  param2=val ...
+
+{{EXEMPLAR_PRESETS}}
+</exemplar_presets>
 
 <parameter_conversion>
 Convert all parameter values to normalised 0.0-1.0 floats.

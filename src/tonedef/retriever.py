@@ -24,6 +24,7 @@ Build the persisted collection once with:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import chromadb
@@ -31,20 +32,48 @@ import chromadb
 from tonedef.paths import DATA_PROCESSED
 
 _COLLECTION_NAME = "gr_manual"
+_EXEMPLARS_COLLECTION_NAME = "gr_exemplars"
 _PERSIST_DIR = DATA_PROCESSED / "chromadb"
+_EXEMPLARS_PATH = DATA_PROCESSED / "exemplar_store.json"
 
-# Cached client + collection — created once per process
+# Module-level caches — created once per process
 _client: chromadb.ClientAPI | None = None
 _collection: chromadb.Collection | None = None
+_exemplars_collection: chromadb.Collection | None = None
+_exemplars_store: dict[str, dict] | None = None  # {preset_name: record}
+
+
+def _get_client() -> chromadb.ClientAPI:
+    """Return the shared persistent ChromaDB client, creating it if needed."""
+    global _client
+    if _client is None:
+        _client = chromadb.PersistentClient(path=str(_PERSIST_DIR))
+    return _client
 
 
 def _get_collection() -> chromadb.Collection:
-    """Return the persisted ChromaDB collection, loading it if needed."""
-    global _client, _collection
+    """Return the GR7 manual collection, loading it if needed."""
+    global _collection
     if _collection is None:
-        _client = chromadb.PersistentClient(path=str(_PERSIST_DIR))
-        _collection = _client.get_collection(_COLLECTION_NAME)
+        _collection = _get_client().get_collection(_COLLECTION_NAME)
     return _collection
+
+
+def _get_exemplars_collection() -> chromadb.Collection:
+    """Return the exemplar presets collection, loading it if needed."""
+    global _exemplars_collection
+    if _exemplars_collection is None:
+        _exemplars_collection = _get_client().get_collection(_EXEMPLARS_COLLECTION_NAME)
+    return _exemplars_collection
+
+
+def _get_exemplars_store() -> dict[str, dict]:
+    """Return the in-memory exemplar store index, loading from JSON if needed."""
+    global _exemplars_store
+    if _exemplars_store is None:
+        records: list[dict] = json.loads(_EXEMPLARS_PATH.read_text(encoding="utf-8"))
+        _exemplars_store = {r["preset_name"]: r for r in records}
+    return _exemplars_store
 
 
 def search_by_hardware(hardware_name: str, n_results: int = 5) -> list[dict]:
@@ -87,6 +116,52 @@ def search_by_descriptor(descriptor: str, n_results: int = 8) -> list[dict]:
         sorted by ascending distance.
     """
     return _query_stratified(descriptor, _DESCRIPTOR_ALLOCATION)
+
+
+def search_exemplars(query: str, n_results: int = 3) -> list[dict]:
+    """
+    Retrieve exemplar preset records most similar to a tonal query.
+
+    Queries the "gr_exemplars" ChromaDB collection (document = tag string +
+    preset name) and returns the matching full exemplar records from the
+    in-memory exemplar store. Results include real parameter values from
+    actual Guitar Rig factory presets.
+
+    The full signal chain text from Phase 1 is the most useful query — it
+    contains tonal vocabulary (clean, distorted, blues, rock, etc.) that
+    aligns naturally with the tag strings stored as document text.
+
+    Args:
+        query: Tonal query string — typically the Phase 1 signal chain text.
+        n_results: Number of exemplar records to return.
+
+    Returns:
+        List of exemplar record dicts, each with:
+            preset_name: str
+            tags:        list[str]
+            components:  list[dict]
+            distance:    float
+    """
+    collection = _get_exemplars_collection()
+    store = _get_exemplars_store()
+
+    results = collection.query(
+        query_texts=[query],
+        n_results=n_results,
+        include=["metadatas", "distances"],
+    )
+
+    items = []
+    for meta, dist in zip(
+        results["metadatas"][0],
+        results["distances"][0],
+        strict=False,
+    ):
+        preset_name = meta.get("preset_name", "")
+        record = store.get(preset_name)
+        if record is not None:
+            items.append({**record, "distance": dist})
+    return items
 
 
 def _query_stratified(query_text: str, allocation: dict[str, int]) -> list[dict]:
@@ -163,7 +238,7 @@ def _query(query_text: str, n_results: int) -> list[dict]:
 
 
 def collection_path() -> Path:
-    """Return the path where the ChromaDB collection is persisted."""
+    """Return the path where the ChromaDB collections are persisted."""
     return _PERSIST_DIR
 
 

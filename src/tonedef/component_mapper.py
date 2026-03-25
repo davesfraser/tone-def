@@ -24,9 +24,10 @@ import re
 
 import anthropic
 
+from tonedef.exemplar_store import format_exemplar_context
 from tonedef.paths import DATA_PROCESSED
 from tonedef.prompts import COMPONENT_SELECTION_PROMPT, DESCRIPTOR_SELECTION_PROMPT
-from tonedef.retriever import search_by_descriptor, search_by_hardware
+from tonedef.retriever import search_by_descriptor, search_by_hardware, search_exemplars
 
 _MAPPING_PATH = DATA_PROCESSED / "component_mapping.json"
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
@@ -318,6 +319,10 @@ def map_components(
     index = build_hardware_index(mapping)
     hardware_names = extract_hardware_names(signal_chain)
 
+    # Retrieve exemplars for few-shot parameter grounding
+    exemplars = search_exemplars(signal_chain)
+    exemplar_context = format_exemplar_context(exemplars)
+
     # Collect all candidate rows and unique component names via mapping table
     all_candidate_rows: list[dict] = []
     seen_component_names: set[str] = set()
@@ -353,6 +358,7 @@ def map_components(
             .replace("{{HARDWARE_MAPPING}}", mapping_context)
             .replace("{{COMPONENT_CANDIDATES}}", candidates_context)
             .replace("{{COMPONENT_SCHEMA}}", schema_context)
+            .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
         )
     else:
         # Descriptor route — no recognised hardware; query by tonal description
@@ -365,6 +371,7 @@ def map_components(
             DESCRIPTOR_SELECTION_PROMPT.replace("{{TONAL_DESCRIPTION}}", tonal_description)
             .replace("{{RETRIEVED_CANDIDATES}}", retrieved_context)
             .replace("{{COMPONENT_SCHEMA}}", schema_context)
+            .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
         )
 
     # Phase 2 LLM call
