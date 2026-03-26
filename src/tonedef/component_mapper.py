@@ -30,6 +30,7 @@ from tonedef.retriever import (
     search_exemplars,
     search_manual_for_categories,
 )
+from tonedef.settings import settings
 
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _AMP_CABINET_LOOKUP_PATH = DATA_PROCESSED / "amp_cabinet_lookup.json"
@@ -318,6 +319,7 @@ def map_components(
     message = client.messages.create(
         model=model,
         max_tokens=4096,
+        temperature=settings.phase2_temperature,
         messages=[{"role": "user", "content": prompt}],
     )
 
@@ -328,11 +330,14 @@ def map_components(
         raw = re.sub(r"^```[a-z]*\n?", "", raw)
         raw = re.sub(r"\n?```$", "", raw)
 
-    # Extract the JSON array even if the model prefixed it with reasoning prose
-    start = raw.find("[")
-    end = raw.rfind("]")
-    if start != -1 and end != -1 and end > start:
-        raw = raw[start : end + 1]
+    # Extract the JSON array even if the model prefixed it with reasoning prose.
+    # Match '[ {' for the start and the last '} ]' for the end, tolerating whitespace.
+    arr_start = re.search(r"\[\s*\{", raw)
+    _arr_end = None
+    for _arr_end in re.finditer(r"\}\s*\]", raw):
+        pass  # advance to the last match
+    if arr_start and _arr_end:
+        raw = raw[arr_start.start() : _arr_end.end()]
 
     try:
         components: list[dict] = json.loads(raw)

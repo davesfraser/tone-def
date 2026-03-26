@@ -9,6 +9,7 @@ from tonedef.component_mapper import load_schema, map_components
 from tonedef.ngrr_builder import transplant_preset
 from tonedef.paths import DATA_EXTERNAL
 from tonedef.prompts import SYSTEM_PROMPT
+from tonedef.settings import settings
 from tonedef.xml_builder import build_signal_chain_xml
 
 load_dotenv()
@@ -27,6 +28,7 @@ if st.button("Generate signal chain") and query:
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=2000,
+            temperature=settings.phase1_temperature,
             system=system,
             messages=[{"role": "user", "content": query}],
         )

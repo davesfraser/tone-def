@@ -197,7 +197,7 @@ def _(exemplar_results, mo):
                 )
             )
         _display = mo.vstack([mo.md("### Matched Exemplars"), *_cards])
-    _display  # noqa: B018
+    _display
 
 
 @app.cell
@@ -214,7 +214,7 @@ def _(exemplar_results, format_exemplar_context, mo):
         )
     else:
         _display = mo.md("")
-    _display  # noqa: B018
+    _display
 
 
 if __name__ == "__main__":

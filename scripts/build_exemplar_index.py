@@ -59,7 +59,9 @@ def main() -> None:
             continue
         seen.add(name)
         tag_str = " ".join(record["tags"])
-        doc = f"{tag_str} -- {name}" if tag_str else name
+        comp_str = ", ".join(c["component_name"] for c in record.get("components", []))
+        parts = [p for p in (tag_str, comp_str) if p]
+        doc = f"{' | '.join(parts)} -- {name}" if parts else name
         ids.append(name)
         documents.append(doc)
         metadatas.append({"preset_name": name})

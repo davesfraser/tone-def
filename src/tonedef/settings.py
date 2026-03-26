@@ -45,6 +45,12 @@ class Settings(BaseSettings):
     # Set a fixed random seed for reproducibility
     random_seed: int = Field(default=42)
 
+    # --- LLM temperature ---
+    # Phase 1 (sonic analysis): moderate for creative flexibility
+    phase1_temperature: float = Field(default=0.4)
+    # Phase 2 (component mapping): low for deterministic JSON output
+    phase2_temperature: float = Field(default=0.2)
+
 
 # A single shared instance for import throughout the project
 # Usage: from {{ package_name }}.settings import settings
