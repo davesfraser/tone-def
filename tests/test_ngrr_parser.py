@@ -6,6 +6,8 @@ All tests operate on synthetic in-memory data — no .ngrr files on disk require
 
 from __future__ import annotations
 
+import statistics
+
 import pytest
 
 from tonedef.ngrr_parser import (
@@ -171,6 +173,14 @@ def test_merge_accumulates_seen_values() -> None:
     assert 0.7 in seen
 
 
+def test_merge_keeps_duplicate_values() -> None:
+    catalogue: dict = {}
+    merge_into_catalogue(catalogue, _COMPONENTS_A, "Preset 1")
+    merge_into_catalogue(catalogue, _COMPONENTS_A, "Preset 1")
+    seen = catalogue["Tweed Amp"]["parameters"]["vol"]["seen_values"]
+    assert seen.count(0.5) == 2
+
+
 def test_merge_preset_name_not_duplicated() -> None:
     catalogue: dict = {}
     merge_into_catalogue(catalogue, _COMPONENTS_A, "Preset 1")
@@ -186,6 +196,53 @@ def test_finalise_catalogue_produces_list_params() -> None:
     params = finalised["Tweed Amp"]["parameters"]
     assert isinstance(params, list)
     assert params[0]["stats"]["count"] == 2
+    assert "mode" in params[0]["stats"]
+    assert "mode_count" in params[0]["stats"]
+
+
+def test_finalise_default_uses_mode_when_strong() -> None:
+    """Mode used as default when it accounts for >=15% of observations."""
+    catalogue: dict = {}
+    # 8 presets with value 0.5, 2 with value 0.7 -> mode=0.5 at 80%
+    comp_a = [
+        {
+            "component_name": "EQ",
+            "component_id": 1,
+            "parameters": [{"param_id": "g", "param_name": "Gain", "value": 0.5}],
+        }
+    ]
+    comp_b = [
+        {
+            "component_name": "EQ",
+            "component_id": 1,
+            "parameters": [{"param_id": "g", "param_name": "Gain", "value": 0.7}],
+        }
+    ]
+    for _ in range(8):
+        merge_into_catalogue(catalogue, comp_a, f"P{_}")
+    for _ in range(2):
+        merge_into_catalogue(catalogue, comp_b, f"Q{_}")
+    finalised = finalise_catalogue(catalogue)
+    assert finalised["EQ"]["parameters"][0]["default_value"] == pytest.approx(0.5)
+
+
+def test_finalise_default_falls_back_to_median_when_weak() -> None:
+    """Median used as default when mode accounts for <15% of observations."""
+    catalogue: dict = {}
+    # 20 unique values -> each appears once -> mode_count/total = 1/20 = 5%
+    for i in range(20):
+        c = [
+            {
+                "component_name": "EQ",
+                "component_id": 1,
+                "parameters": [{"param_id": "g", "param_name": "Gain", "value": i / 20}],
+            }
+        ]
+        merge_into_catalogue(catalogue, c, f"P{i}")
+    finalised = finalise_catalogue(catalogue)
+    param = finalised["EQ"]["parameters"][0]
+    expected_median = round(statistics.median([i / 20 for i in range(20)]), 6)
+    assert param["default_value"] == pytest.approx(expected_median)
 
 
 def test_finalise_catalogue_sorted_keys() -> None:

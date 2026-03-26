@@ -221,7 +221,7 @@ def _(mo):
        for any tone query so generated presets appear in the right browser
        categories in Guitar Rig.
 
-    2. **`COMPONENT_SELECTION_PROMPT`** — tags provide tonal context that
+    2. **`EXEMPLAR_REFINEMENT_PROMPT`** — tags provide tonal context that
        helps ground component and parameter selection against known exemplars.
     """)
     return

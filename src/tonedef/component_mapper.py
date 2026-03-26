@@ -3,22 +3,20 @@ component_mapper.py
 --------------------
 Runtime module that maps a Phase 1 signal chain to Guitar Rig 7 components.
 
-Responsibilities:
-  1. Load component_mapping.json and component_schema.json
-  2. Index the mapping by hardware name for fast lookup
-  3. Parse hardware names from the Phase 1 signal chain text
-  4. Resolve each hardware name to candidate GR7 components
-     (exact match → fuzzy match → no match / omit)
-  5. Build COMPONENT_SELECTION_PROMPT context strings
-  6. Call the Anthropic API (Phase 2 LLM call)
-  7. Parse and validate the JSON response
-  8. Fill defaults for any omitted parameters from the schema
+Exemplar-first architecture:
+  1. Retrieve tonally-similar factory presets (exemplars) via ChromaDB
+  2. Retrieve manual descriptions for exemplar components + missing categories
+  3. Load amp-to-cabinet lookup for deterministic cabinet assignment
+  4. Assemble EXEMPLAR_REFINEMENT_PROMPT with all context
+  5. Call the Anthropic API (Phase 2 LLM call)
+  6. Parse and validate the JSON response
+  7. Fill defaults for any omitted parameters from the schema
+  8. Enforce correct cabinet via amp-to-cabinet lookup
   9. Return an ordered list of component dicts ready for xml_builder
 """
 
 from __future__ import annotations
 
-import difflib
 import json
 import re
 
@@ -26,26 +24,23 @@ import anthropic
 
 from tonedef.exemplar_store import format_exemplar_context
 from tonedef.paths import DATA_PROCESSED
-from tonedef.prompts import COMPONENT_SELECTION_PROMPT, DESCRIPTOR_SELECTION_PROMPT
-from tonedef.retriever import search_by_descriptor, search_by_hardware, search_exemplars
+from tonedef.prompts import EXEMPLAR_REFINEMENT_PROMPT
+from tonedef.retriever import (
+    get_manual_chunks_for_components,
+    search_exemplars,
+    search_manual_for_categories,
+)
 
-_MAPPING_PATH = DATA_PROCESSED / "component_mapping.json"
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
-_MANUAL_CHUNKS_PATH = DATA_PROCESSED / "gr_manual_chunks.json"
+_AMP_CABINET_LOOKUP_PATH = DATA_PROCESSED / "amp_cabinet_lookup.json"
 
-# Minimum similarity score for fuzzy hardware name matching
-_FUZZY_CUTOFF = 0.6
+_MATCHED_CABINET_PRO_ID = 156000
+_MATCHED_CABINET_PRO_NAME = "Matched Cabinet Pro"
 
 
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
-
-
-def load_mapping() -> list[dict]:
-    """Load component_mapping.json as a list of row dicts."""
-    with open(_MAPPING_PATH, encoding="utf-8") as f:
-        return json.load(f)
 
 
 def load_schema() -> dict:
@@ -54,100 +49,10 @@ def load_schema() -> dict:
         return json.load(f)
 
 
-def load_manual_chunks() -> dict:
-    """Load gr_manual_chunks.json as a dict keyed by component_name."""
-    if not _MANUAL_CHUNKS_PATH.exists():
-        return {}
-    with open(_MANUAL_CHUNKS_PATH, encoding="utf-8") as f:
+def load_amp_cabinet_lookup() -> dict[str, dict]:
+    """Load amp_cabinet_lookup.json as a dict keyed by amp component name."""
+    with open(_AMP_CABINET_LOOKUP_PATH, encoding="utf-8") as f:
         return json.load(f)
-
-
-# ---------------------------------------------------------------------------
-# Indexing and lookup
-# ---------------------------------------------------------------------------
-
-
-def build_hardware_index(mapping: list[dict]) -> dict[str, list[dict]]:
-    """
-    Build an inverted index from lowercase hardware name to mapping rows.
-
-    Multiple rows may share a hardware name (aliasing multiple variants),
-    so the value is always a list.
-
-    Args:
-        mapping: Output of load_mapping().
-
-    Returns:
-        Dict mapping lowercase hardware_name → list of matching rows.
-    """
-    index: dict[str, list[dict]] = {}
-    for row in mapping:
-        key = row["hardware_name"].lower().strip()
-        index.setdefault(key, []).append(row)
-    return index
-
-
-def lookup_hardware(
-    hardware_name: str,
-    index: dict[str, list[dict]],
-) -> list[dict]:
-    """
-    Look up a hardware name in the mapping index.
-
-    Tries exact match first (case-insensitive), then fuzzy match using
-    difflib. Returns an empty list if no match meets the similarity cutoff.
-
-    Args:
-        hardware_name: Hardware name as extracted from the signal chain.
-        index: Output of build_hardware_index().
-
-    Returns:
-        List of matching mapping rows (may be empty).
-    """
-    key = hardware_name.lower().strip()
-
-    # Exact match
-    if key in index:
-        return index[key]
-
-    # Fuzzy match
-    close = difflib.get_close_matches(key, index.keys(), n=3, cutoff=_FUZZY_CUTOFF)
-    if close:
-        best = close[0]
-        rows = index[best]
-        return rows
-
-    return []
-
-
-# ---------------------------------------------------------------------------
-# Hardware name extraction from Phase 1 output
-# ---------------------------------------------------------------------------
-
-
-def extract_hardware_names(signal_chain: str) -> list[str]:
-    """
-    Extract hardware unit names from a Phase 1 signal chain string.
-
-    Parses lines that match the Phase 1 output format:
-        [ Unit name — unit type ] [DOCUMENTED/INFERRED/ESTIMATED]
-
-    Args:
-        signal_chain: The text content of the <signal_chain> block from Phase 1.
-
-    Returns:
-        List of hardware unit names in signal chain order.
-    """
-    # Pattern: [ Name — type ] [LABEL] — capture the Name part
-    # Use only em dash and en dash as separators (not hyphen, which appears in hardware names)
-    pattern = re.compile(r"\[\s*(.+?)\s*[\u2014\u2013]\s*.+?\s*\]", re.MULTILINE)
-    names = []
-    for match in pattern.finditer(signal_chain):
-        candidate = match.group(1).strip()
-        # Skip the provenance label token if it leaked through
-        if candidate.upper() not in ("DOCUMENTED", "INFERRED", "ESTIMATED"):
-            names.append(candidate)
-    return names
 
 
 # ---------------------------------------------------------------------------
@@ -155,76 +60,46 @@ def extract_hardware_names(signal_chain: str) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _build_hardware_mapping_context(candidate_rows: list[dict]) -> str:
-    """Format mapping rows as a pipe-delimited table for the prompt."""
-    if not candidate_rows:
-        return "(no matches found in mapping table)"
-    lines = []
-    for row in candidate_rows:
-        lines.append(
-            f"{row['hardware_name']} | {row['component_name']} "
-            f"| {row['component_id']} | {row['confidence']}"
-        )
-    return "\n".join(lines)
+def build_manual_reference_context(manual_results: list[dict]) -> str:
+    """Format manual chunk descriptions for the prompt.
 
+    Args:
+        manual_results: List of dicts with component_name, category, text.
 
-def _build_component_candidates_context(
-    component_names: list[str],
-    manual_chunks: dict,
-) -> str:
-    """Format manual chunk descriptions for candidate components."""
-    if not component_names:
+    Returns:
+        Formatted string for {{MANUAL_REFERENCE}} injection.
+    """
+    if not manual_results:
         return "(no manual descriptions available)"
     sections = []
-    for name in component_names:
-        chunk = manual_chunks.get(name) or manual_chunks.get(name.upper())
-        if chunk:
-            text = chunk.get("text", "") if isinstance(chunk, dict) else str(chunk)
-            # Trim to the first 400 characters to keep context concise
-            trimmed = text[:400].rstrip()
-            if len(text) > 400:
-                trimmed += " ..."
-            sections.append(f"[{name}]\n{trimmed}")
+    seen: set[str] = set()
+    for r in manual_results:
+        name = r["component_name"]
+        if name in seen:
+            continue
+        seen.add(name)
+        category = r.get("category", "")
+        text = r.get("text", "")
+        trimmed = text[:600].rstrip()
+        if len(text) > 600:
+            trimmed += " ..."
+        sections.append(f"[{name}] ({category})\n{trimmed}")
     return "\n\n".join(sections) if sections else "(no manual descriptions available)"
 
 
-def _build_retrieved_candidates_context(results: list[dict]) -> str:
-    """Format ChromaDB retrieval results as numbered candidate descriptions."""
-    if not results:
-        return "(no candidates retrieved)"
-    sections = []
-    for r in results:
-        name = r["component_name"]
-        category = r.get("category", "")
-        text = r.get("text", "")
-        trimmed = text[:400].rstrip()
-        if len(text) > 400:
-            trimmed += " ..."
-        sections.append(f"[{name}] ({category})\n{trimmed}")
-    return "\n\n".join(sections)
-
-
-def _extract_tonal_description(signal_chain: str) -> str:
-    """Extract a compact tonal description from a Phase 1 signal chain string.
-
-    Strips the structured signal chain lines and returns the descriptive text
-    that follows, falling back to the full string if no structure is found.
-    """
-    # Return everything after the last </signal_chain> tag if present
-    import re
-
-    match = re.search(r"</signal_chain>\s*(.*)", signal_chain, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    # Otherwise return the full string — still useful as a query
-    return signal_chain.strip()
-
-
-def _build_component_schema_context(
+def build_component_schema_context(
     component_names: list[str],
     schema: dict,
 ) -> str:
-    """Format parameter definitions for candidate components."""
+    """Format parameter definitions for candidate components.
+
+    Args:
+        component_names: List of component names to include.
+        schema: Parsed component_schema.json.
+
+    Returns:
+        Formatted string for {{COMPONENT_SCHEMA}} injection.
+    """
     if not component_names:
         return "(no schema available)"
     sections = []
@@ -241,9 +116,85 @@ def _build_component_schema_context(
     return "\n\n".join(sections) if sections else "(no schema available)"
 
 
+def build_cabinet_lookup_context(amp_cabinet_lookup: dict[str, dict]) -> str:
+    """Format the amp-to-cabinet lookup table for the prompt.
+
+    Args:
+        amp_cabinet_lookup: Output of load_amp_cabinet_lookup().
+
+    Returns:
+        Pipe-delimited table for {{CABINET_LOOKUP}} injection.
+    """
+    lines = []
+    for amp_name, entry in sorted(amp_cabinet_lookup.items()):
+        cab_name = entry["cabinet_component_name"]
+        cab_id = entry["cabinet_component_id"]
+        cab_val = int(entry["cab_value"])
+        lines.append(f"{amp_name} | {cab_name} | {cab_id} | {cab_val}")
+    return "\n".join(lines) if lines else "(no cabinet lookup available)"
+
+
 # ---------------------------------------------------------------------------
 # Post-processing
 # ---------------------------------------------------------------------------
+
+
+def _find_amp_name(components: list[dict], amp_cabinet_lookup: dict[str, dict]) -> str | None:
+    """Return the amp component name from the component list, if any."""
+    lookup_lower = {k.lower(): k for k in amp_cabinet_lookup}
+    for comp in components:
+        cname = comp.get("component_name", "")
+        if cname.lower() in lookup_lower:
+            return lookup_lower[cname.lower()]
+    return None
+
+
+def _make_matched_cabinet_pro(
+    amp_name: str | None,
+    amp_cabinet_lookup: dict[str, dict],
+    schema: dict,
+    base_exemplar: str,
+) -> dict:
+    """Build a Matched Cabinet Pro component with the correct Cab value.
+
+    Args:
+        amp_name: Amp component name from the lookup (or None).
+        amp_cabinet_lookup: The amp-to-cabinet lookup table.
+        schema: Parsed component_schema.json.
+        base_exemplar: Name of the base exemplar preset.
+
+    Returns:
+        Component dict for Matched Cabinet Pro.
+    """
+    params: dict[str, float | int] = {
+        p["param_id"]: p["default_value"]
+        for p in schema.get(_MATCHED_CABINET_PRO_NAME, {}).get("parameters", [])
+    }
+    if amp_name and amp_name in amp_cabinet_lookup:
+        params["Cab"] = int(amp_cabinet_lookup[amp_name]["cab_value"])
+
+    return {
+        "component_name": _MATCHED_CABINET_PRO_NAME,
+        "component_id": _MATCHED_CABINET_PRO_ID,
+        "base_exemplar": base_exemplar,
+        "modification": "adjusted",
+        "confidence": "documented",
+        "parameters": params,
+    }
+
+
+def _is_integer_param(param_entry: dict) -> bool:
+    """Detect integer-valued params from schema stats.
+
+    A parameter is integer-valued when its default, observed min, and
+    observed max are all whole numbers (e.g. cabinet selectors, mode
+    switches, step counts, ratio selectors).
+    """
+    default = param_entry.get("default_value", 0.0)
+    stats = param_entry.get("stats", {})
+    lo = stats.get("min", 0.0)
+    hi = stats.get("max", 0.0)
+    return float(default) == int(default) and float(lo) == int(lo) and float(hi) == int(hi)
 
 
 def fill_defaults(components: list[dict], schema: dict) -> list[dict]:
@@ -251,14 +202,17 @@ def fill_defaults(components: list[dict], schema: dict) -> list[dict]:
     Ensure every parameter in the schema is present in each component's
     parameter dict. Missing parameters are filled with their default_value.
 
-    Also clamps all values to [0.0, 1.0].
+    Values are clamped to the observed [min, max] range from the schema.
+    Integer-valued parameters (detected from schema stats) are preserved
+    as ``int`` so that the XML builder writes them as bare integers,
+    matching the factory preset format.
 
     Args:
         components: Component list from the LLM response.
         schema: Parsed component_schema.json.
 
     Returns:
-        Component list with complete, clamped parameter dicts.
+        Component list with complete, range-checked parameter dicts.
     """
     for comp in components:
         comp_name = comp.get("component_name", "")
@@ -266,10 +220,18 @@ def fill_defaults(components: list[dict], schema: dict) -> list[dict]:
         if comp_name in schema:
             for param_entry in schema[comp_name].get("parameters", []):
                 pid = param_entry["param_id"]
+                is_int = _is_integer_param(param_entry)
+                stats = param_entry.get("stats", {})
+                lo = stats.get("min", 0.0)
+                hi = stats.get("max", 1.0)
+
                 if pid not in params:
-                    params[pid] = param_entry["default_value"]
+                    default = param_entry["default_value"]
+                    params[pid] = int(default) if is_int else default
                 else:
-                    params[pid] = max(0.0, min(1.0, float(params[pid])))
+                    val = float(params[pid])
+                    val = max(lo, min(hi, val))
+                    params[pid] = int(val) if is_int else val
         comp["parameters"] = params
     return components
 
@@ -285,96 +247,74 @@ def map_components(
     model: str = "claude-sonnet-4-6",
 ) -> list[dict]:
     """
-    Map a Phase 1 signal chain string to an ordered list of GR7 component dicts.
+    Map a Phase 1 signal chain to an ordered list of GR7 component dicts.
 
-    Orchestrates the full Phase 2 pipeline:
-      1. Extract hardware names from the signal chain
-      2. Resolve each name to GR7 component candidates via the mapping index
-      3. Assemble prompt context (mapping table, manual descriptions, schema)
-      4. Call the LLM with COMPONENT_SELECTION_PROMPT
-      5. Parse the JSON response
-      6. Fill missing parameters with schema defaults
+    Exemplar-first pipeline:
+      1. Retrieve top-5 tonally similar factory presets
+      2. Gather manual descriptions for exemplar components
+      3. Retrieve manual descriptions for effect categories the exemplars lack
+      4. Build prompt with exemplars, manual reference, schema, cabinet lookup
+      5. Call the LLM with EXEMPLAR_REFINEMENT_PROMPT
+      6. Parse JSON response, fill defaults, enforce cabinet
 
     Args:
-        signal_chain: The text of the Phase 1 signal chain (full output string
-                      or just the content inside <signal_chain> tags).
+        signal_chain: The Phase 1 signal chain text.
         client: An initialised anthropic.Anthropic client.
         model: Anthropic model identifier.
 
     Returns:
         Ordered list of component dicts, each with:
-            component_name: str
-            component_id: int
-            hardware_source: str
-            confidence: str
-            parameters: dict[param_id, float]
+            component_name, component_id, base_exemplar,
+            modification, confidence, parameters.
 
     Raises:
         ValueError: If the LLM response cannot be parsed as a JSON array.
     """
-    mapping = load_mapping()
     schema = load_schema()
-    manual_chunks = load_manual_chunks()
+    amp_cabinet_lookup = load_amp_cabinet_lookup()
 
-    index = build_hardware_index(mapping)
-    hardware_names = extract_hardware_names(signal_chain)
-
-    # Retrieve exemplars for few-shot parameter grounding
+    # 1. Retrieve exemplars
     exemplars = search_exemplars(signal_chain)
     exemplar_context = format_exemplar_context(exemplars)
 
-    # Collect all candidate rows and unique component names via mapping table
-    all_candidate_rows: list[dict] = []
-    seen_component_names: set[str] = set()
-    candidate_component_names: list[str] = []
+    # 2. Gather component names across all exemplars
+    exemplar_component_names: set[str] = set()
+    for ex in exemplars:
+        for comp in ex.get("components", []):
+            exemplar_component_names.add(comp["component_name"])
 
-    for hw_name in hardware_names:
-        rows = lookup_hardware(hw_name, index)
-        # Fallback: semantic search for unmatched hardware names
-        if not rows:
-            retrieved = search_by_hardware(hw_name)
-            for r in retrieved:
-                cname = r["component_name"]
-                if cname not in seen_component_names:
-                    seen_component_names.add(cname)
-                    candidate_component_names.append(cname)
-        else:
-            all_candidate_rows.extend(rows)
-            for row in rows:
-                cname = row["component_name"]
-                if cname not in seen_component_names:
-                    seen_component_names.add(cname)
-                    candidate_component_names.append(cname)
+    # 3. Manual descriptions for exemplar components
+    manual_for_exemplars = get_manual_chunks_for_components(exemplar_component_names)
 
-    if all_candidate_rows:
-        # Hardware route — mapping table produced results
-        mapping_context = _build_hardware_mapping_context(all_candidate_rows)
-        candidates_context = _build_component_candidates_context(
-            candidate_component_names, manual_chunks
-        )
-        schema_context = _build_component_schema_context(candidate_component_names, schema)
-        prompt = (
-            COMPONENT_SELECTION_PROMPT.replace("{{SIGNAL_CHAIN}}", signal_chain)
-            .replace("{{HARDWARE_MAPPING}}", mapping_context)
-            .replace("{{COMPONENT_CANDIDATES}}", candidates_context)
-            .replace("{{COMPONENT_SCHEMA}}", schema_context)
-            .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
-        )
-    else:
-        # Descriptor route — no recognised hardware; query by tonal description
-        tonal_description = _extract_tonal_description(signal_chain)
-        retrieved = search_by_descriptor(tonal_description)
-        retrieved_names = [r["component_name"] for r in retrieved]
-        retrieved_context = _build_retrieved_candidates_context(retrieved)
-        schema_context = _build_component_schema_context(retrieved_names, schema)
-        prompt = (
-            DESCRIPTOR_SELECTION_PROMPT.replace("{{TONAL_DESCRIPTION}}", tonal_description)
-            .replace("{{RETRIEVED_CANDIDATES}}", retrieved_context)
-            .replace("{{COMPONENT_SCHEMA}}", schema_context)
-            .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
-        )
+    # 4. Manual descriptions for categories the exemplars may lack
+    manual_for_additions = search_manual_for_categories(
+        signal_chain, exclude_names=exemplar_component_names
+    )
 
-    # Phase 2 LLM call
+    # 5. Combine manual results
+    all_manual = manual_for_exemplars + manual_for_additions
+
+    # 6. Collect all component names that need schema entries
+    all_component_names = list(
+        exemplar_component_names
+        | {r["component_name"] for r in manual_for_additions}
+        | {_MATCHED_CABINET_PRO_NAME}
+    )
+
+    # 7. Build prompt
+    manual_context = build_manual_reference_context(all_manual)
+    schema_context = build_component_schema_context(all_component_names, schema)
+    cabinet_context = build_cabinet_lookup_context(amp_cabinet_lookup)
+
+    prompt = (
+        EXEMPLAR_REFINEMENT_PROMPT.replace("{{SIGNAL_CHAIN}}", signal_chain)
+        .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
+        .replace("{{MANUAL_REFERENCE}}", manual_context)
+        .replace("{{COMPONENT_SCHEMA}}", schema_context)
+        .replace("{{CABINET_LOOKUP}}", cabinet_context)
+    )
+
+    # 8. Phase 2 LLM call
     message = client.messages.create(
         model=model,
         max_tokens=4096,
@@ -403,5 +343,14 @@ def map_components(
         raise ValueError(f"Phase 2 LLM returned non-array JSON: {type(components)}")
 
     components = fill_defaults(components, schema)
+
+    # 9. Enforce cabinet — remove any LLM-emitted cabinet, then append the
+    # correct Matched Cabinet Pro with deterministic Cab value from lookup.
+    base_exemplar = components[0].get("base_exemplar", "") if components else ""
+    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    amp_name = _find_amp_name(components, amp_cabinet_lookup)
+    components.append(
+        _make_matched_cabinet_pro(amp_name, amp_cabinet_lookup, schema, base_exemplar)
+    )
 
     return components

@@ -159,7 +159,8 @@ def test_build_signal_chain_xml_param_name_fallback_to_id() -> None:
     assert param.get("name") == "xx"  # falls back to param_id
 
 
-def test_build_signal_chain_xml_parameter_value_clamped_high() -> None:
+def test_build_signal_chain_xml_parameter_value_passthrough_high() -> None:
+    """xml_builder does not clamp — values pass through as-is."""
     components = [
         {"component_name": "Tweed Delight", "component_id": 79000, "parameters": {"vb": 2.5}}
     ]
@@ -167,10 +168,11 @@ def test_build_signal_chain_xml_parameter_value_clamped_high() -> None:
     root = ET.fromstring(result)
     param = root.find(".//parameter[@id='vb']")
     assert param is not None
-    assert float(param.get("value", "0")) == pytest.approx(1.0)
+    assert float(param.get("value", "0")) == pytest.approx(2.5)
 
 
-def test_build_signal_chain_xml_parameter_value_clamped_low() -> None:
+def test_build_signal_chain_xml_parameter_value_passthrough_low() -> None:
+    """xml_builder does not clamp — negative values pass through as-is."""
     components = [
         {"component_name": "Tweed Delight", "component_id": 79000, "parameters": {"vb": -0.5}}
     ]
@@ -178,7 +180,7 @@ def test_build_signal_chain_xml_parameter_value_clamped_low() -> None:
     root = ET.fromstring(result)
     param = root.find(".//parameter[@id='vb']")
     assert param is not None
-    assert float(param.get("value", "1")) == pytest.approx(0.0)
+    assert float(param.get("value", "1")) == pytest.approx(-0.5)
 
 
 def test_build_signal_chain_xml_base_parameters_present() -> None:

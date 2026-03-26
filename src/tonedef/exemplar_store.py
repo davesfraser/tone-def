@@ -2,7 +2,7 @@
 exemplar_store.py
 -----------------
 Builds and formats a dataset of factory preset exemplars for few-shot parameter
-grounding in COMPONENT_SELECTION_PROMPT and DESCRIPTOR_SELECTION_PROMPT.
+grounding in EXEMPLAR_REFINEMENT_PROMPT.
 
 Each exemplar record pairs a preset's tonal tags (from tag_catalogue.json) with
 its actual component list and parameter values (parsed from the .ngrr binary).

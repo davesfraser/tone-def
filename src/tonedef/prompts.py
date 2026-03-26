@@ -337,269 +337,198 @@ Characters: [comma-separated values from controlled vocabulary]
 Genres: [comma-separated values from controlled vocabulary]
 """
 
-MAPPING_PROMPT = """
-Below is a list of Guitar Rig 7 component names. For each component, provide a
-mapping to the real-world hardware it is based on.
-
-Return a JSON array. Each element must have exactly these fields:
-
-{{
-  "component_name": "exact Guitar Rig component name as given",
-  "hardware_aliases": [
-    "Primary hardware name e.g. Vox AC30",
-    "Alternative name or variant e.g. Vox AC30 Top Boost"
-  ],
-  "hardware_type": "one of: tube amplifier, solid state amplifier, overdrive pedal, distortion pedal, fuzz pedal, compressor pedal, delay pedal, reverb pedal, modulation pedal, equaliser, noise gate, cabinet simulation, microphone, utility",
-  "confidence": "one of: documented, inferred, estimated",
-  "rationale": "one sentence explaining the mapping and confidence level"
-}}
-
-Confidence levels:
-- documented: confirmed in NI documentation, marketing materials, or
-  well-established community knowledge
-- inferred: component characteristics strongly suggest a specific hardware unit
-  but not officially confirmed
-- estimated: generic type with no clear single hardware reference
-
-Rules:
-- hardware_aliases must contain at least one entry
-- For generic components with no real-world hardware equivalent, use the
-  component name as the primary alias and set confidence to estimated
-- Do not invent hardware that does not exist
-- Return ONLY the JSON array, no preamble or explanation
-
-Guitar Rig 7 components to map:
-{component_list}
-"""
-
-COMPONENT_SELECTION_PROMPT = """
+EXEMPLAR_REFINEMENT_PROMPT = """
 <task>
-You are the component selection stage of the ToneDef preset generator.
+You are the preset builder for the ToneDef Guitar Rig 7 preset generator.
 
-You have been given a human-readable signal chain recommendation (Phase 1 output)
-and must map each piece of hardware to its Guitar Rig 7 equivalent, then produce
-normalised parameter values for each component.
+You have been given:
+1. A tonal target — a human-readable signal chain recommendation describing the
+   desired guitar tone with real-world hardware references and settings.
+2. A set of real Guitar Rig 7 factory presets that are tonally similar to the
+   target. Each preset contains proven-good component and parameter combinations.
+3. Manual descriptions explaining what each component and its parameters do.
+4. Parameter schemas with valid param_id keys and default values.
+
+Your job: select the best exemplar preset as a starting point, then **modify it**
+to match the tonal target. This is an edit-based approach — you are adjusting an
+existing, working preset, not building one from scratch.
 
 Return a JSON array — nothing else. No preamble, no explanation, no markdown fences.
 </task>
 
-<signal_chain>
+<tonal_target>
 {{SIGNAL_CHAIN}}
-</signal_chain>
-
-<hardware_mapping>
-The following table maps real-world hardware names to Guitar Rig 7 components.
-Format: hardware_name | component_name | component_id | confidence
-
-{{HARDWARE_MAPPING}}
-</hardware_mapping>
-
-<component_candidates>
-Descriptions from the Guitar Rig 7 manual for candidate components. Use these to
-select the correct variant when multiple GR7 components map to the same hardware
-(e.g. Cool Plex vs Hot Plex for a Marshall Plexi).
-
-{{COMPONENT_CANDIDATES}}
-</component_candidates>
-
-<component_schema>
-Parameter definitions for each candidate component. Each entry lists:
-param_id (the XML key) | param_name (display label) | default_value
-
-Include ALL parameters in your output — use default_value for any parameter
-not specified in the signal chain.
-
-{{COMPONENT_SCHEMA}}
-</component_schema>
+</tonal_target>
 
 <exemplar_presets>
-Real Guitar Rig factory presets with similar tonal characteristics. Use these
-as a reference for realistic parameter value combinations. Format:
-
-  [Tags] -- Preset Name
-    Component Name (component_id): param1=val  param2=val ...
+Real Guitar Rig 7 factory presets retrieved by tonal similarity. Each preset
+shows its tags, components, and all parameter values. These are proven-good
+starting points — prefer preserving their structure and adjusting values over
+replacing components.
 
 {{EXEMPLAR_PRESETS}}
 </exemplar_presets>
 
+<manual_reference>
+Descriptions from the Guitar Rig 7 user manual for relevant components. Use
+these to understand what each parameter controls so you can make informed
+adjustments. Each entry explains the component's sonic character and what its
+knobs do.
+
+{{MANUAL_REFERENCE}}
+</manual_reference>
+
+<component_schema>
+Parameter definitions for all relevant components. Each entry lists:
+  param_id (the XML key) | param_name (display label) | default_value
+
+Your output MUST use these exact param_id keys. Include ALL parameters for
+every component in your output — use default_value for any parameter you
+don't need to change.
+
+{{COMPONENT_SCHEMA}}
+</component_schema>
+
+<cabinet_lookup>
+Deterministic amp-to-cabinet mapping. After selecting/modifying the amp
+component, use this table to emit the correct Matched Cabinet Pro entry.
+Format: amp_name | cabinet_component_name | cabinet_component_id | cab_value
+
+{{CABINET_LOOKUP}}
+</cabinet_lookup>
+
 <parameter_conversion>
+The tonal target uses human-readable settings that must be converted to
+normalised 0.0-1.0 floats for all parameters except Cab (which is an integer
+enum — use the value from cabinet_lookup verbatim).
+
+CLOCK POSITIONS
 A clock face runs 7 o'clock (fully counter-clockwise = 0.0) to 5 o'clock
 (fully clockwise = 1.0), with 12 o'clock = 0.5.
-Conversion: (hour_on_12h_clock - 7) / 10  — treating positions past 12 as
-continuing past 12 (so 1 o'clock = 0.6, 2 o'clock = 0.7, 3 o'clock = 0.8).
+Conversion: (hour_on_12h_clock - 7) / 10.
 For ranges like "2-3 o'clock", use the midpoint (0.75).
 
-Examples:
-  7 o'clock  → 0.0
-  9 o'clock  → 0.2
-  10 o'clock → 0.3
-  12 o'clock → 0.5
-  2 o'clock  → 0.7
-  3 o'clock  → 0.8
-  5 o'clock  → 1.0
+  7 o'clock  → 0.0       10 o'clock → 0.3      2 o'clock  → 0.7
+  9 o'clock  → 0.2       12 o'clock → 0.5      5 o'clock  → 1.0
 
-0-10 KNOB SCALES
-Divide by 10: value 7 → 0.7, value 5 → 0.5.
+0-10 KNOB SCALES:  divide by 10 (e.g. 7 → 0.7).
 
-NAMED POSITIONS / SWITCHES
-Map to 0.0 (off / minimum / clean) or 1.0 (on / maximum / drive) by context.
-Boolean on/off parameters: 1.0 = on, 0.0 = off.
+NAMED POSITIONS / SWITCHES:  0.0 = off/minimum, 1.0 = on/maximum.
+
+TONAL DESCRIPTORS (when adjusting from exemplar values):
+  "brighter"  → increase treble/presence params by 0.1-0.2
+  "warmer"    → decrease treble params by 0.1-0.2, bump mid/bass
+  "grittier"  → increase drive/gain by 0.1-0.2
+  "cleaner"   → decrease drive/gain by 0.1-0.2
+  "more ambient" → increase reverb/delay mix by 0.1-0.2
+  "drier"     → decrease reverb/delay mix or remove the effect
 
 MISSING PARAMETERS
-If a parameter is not mentioned in the signal chain and has no contextual basis
-for estimation, use the default_value from the component schema.
+If a parameter is not mentioned in the tonal target and has no contextual
+basis for adjustment, keep the exemplar's value. If the component is newly
+added, use default_value from the component schema.
 </parameter_conversion>
 
-<selection_rules>
-1. Map every hardware unit in the SIGNAL CHAIN and GUITAR SIGNAL CHAIN sections
-   to a GR7 component using the hardware_mapping table.
-2. Skip RECORDING CHAIN and STUDIO PROCESSING sections entirely — those units
-   are not modelled in Guitar Rig.
-3. For the CABINET AND MIC section, always emit exactly one cabinet component
-   using component_id 88000 (Matched Cabinet) with all default parameter values.
-   Do not attempt to map the specific cabinet or microphone hardware.
-4. When multiple GR7 variants exist for the same hardware (e.g. Cool Plex vs
-   Hot Plex for a Marshall Plexi), use the component_candidates descriptions
-   to select the best match for the tonal context of the signal chain.
-5. If a hardware unit has no match in the hardware_mapping table, omit it
-   rather than guessing a component_id.
-6. Preserve signal chain order: pedals first, then amp, then cabinet last.
-7. Do not include routing utilities (Split, CrossOver, Container) unless they
-   were explicitly part of the hardware chain.
-</selection_rules>
-
-<output_schema>
-Return a JSON array. Each element must have exactly these fields:
-{
-  "component_name": "exact GR7 component name as in hardware_mapping",
-  "component_id": <integer>,
-  "hardware_source": "hardware name as described in the signal chain",
-  "confidence": "documented" | "inferred" | "estimated",
-  "parameters": {
-    "<param_id>": <float>,
-    ...
-  }
-}
-
-Constraints:
-- All param_id keys must exactly match those in the component_schema.
-- All parameter values must be floats in the range [0.0, 1.0].
-- The parameters object must include every parameter listed in the component_schema.
-</output_schema>
-
-<example>
-Signal chain mentions: Vox AC30, Treble: 2 o'clock, Bass: 10 o'clock, Volume: 2-3 o'clock
-Mapping entry: Vox AC30 | AC Box | 38000 | documented
-
-Output element:
-{
-  "component_name": "AC Box",
-  "component_id": 38000,
-  "hardware_source": "Vox AC30",
-  "confidence": "documented",
-  "parameters": {
-    "Pwr": 1.0,
-    "CASSt": 0.0,
-    "Vol": 0.75,
-    "Br": 0.7,
-    "Tb": 0.7,
-    "Bs": 0.25,
-    "Tc": 0.2,
-    "TSp": 0.44762,
-    "TDt": 0.0
-  }
-}
-</example>
-"""
-
-DESCRIPTOR_SELECTION_PROMPT = """
-<task>
-You are the component selection stage of the ToneDef preset generator.
-
-The user's query did not reference specific hardware. Instead, a tonal descriptor
-has been retrieved from the Guitar Rig 7 manual — a list of GR7 components whose
-descriptions best match the requested tone.
-
-Select the most appropriate components from the retrieved candidates to build a
-signal chain that matches the tonal description. Then produce normalised parameter
-values for each selected component.
-
-Return a JSON array — nothing else. No preamble, no explanation, no markdown fences.
-</task>
-
-<tonal_description>
-{{TONAL_DESCRIPTION}}
-</tonal_description>
-
-<retrieved_candidates>
-The following GR7 components were retrieved by semantic similarity to the tonal
-description. Each entry contains the component name, category, and a description
-from the Guitar Rig 7 manual.
-
-{{RETRIEVED_CANDIDATES}}
-</retrieved_candidates>
-
-<component_schema>
-Parameter definitions for the retrieved candidate components. Each entry lists:
-param_id (the XML key) | param_name (display label) | default_value
-
-{{COMPONENT_SCHEMA}}
-</component_schema>
-
-<exemplar_presets>
-Real Guitar Rig factory presets with similar tonal characteristics. Use these
-as a reference for realistic parameter value combinations. Format:
-
-  [Tags] -- Preset Name
-    Component Name (component_id): param1=val  param2=val ...
-
-{{EXEMPLAR_PRESETS}}
-</exemplar_presets>
-
-<parameter_conversion>
-Convert all parameter values to normalised 0.0-1.0 floats.
-
-Set parameters to values that match the tonal description. For example:
-- "bright" → treble/brilliance parameters toward higher values (0.6-0.8)
-- "warm" or "dark" → treble parameters toward lower values (0.2-0.4)
-- "clean" → gain/drive parameters low (0.1-0.3)
-- "overdriven" / "crunchy" → gain/drive parameters mid-range (0.5-0.7)
-- "high gain" / "saturated" → gain/drive parameters high (0.7-1.0)
-- "spacious" / "ambient" → reverb mix high (0.5-0.8)
-- "dry" → reverb/delay mix low (0.0-0.2)
-
-For parameters not relevant to the tonal description, use default_value from
-the component schema.
-</parameter_conversion>
-
-<selection_rules>
-1. Build a complete guitar signal chain: pedals (if any) → amp → cabinet.
-2. Always include exactly one cabinet component using component_id 88000
-   (Matched Cabinet) as the final component.
-3. Prefer simpler chains (2-4 components) over complex multi-component rigs
-   unless the tonal description explicitly calls for multiple effects.
-4. Do not include routing utilities (Split, CrossOver, Container).
-5. Preserve a logical signal order: distortion/drive pedals → modulation → amp → cabinet.
-6. Select the single best-fit variant when similar components exist
-   (e.g. choose one Plex variant, not both).
-</selection_rules>
+<refinement_rules>
+1. SELECT a base exemplar — pick the preset whose overall tonal character
+   (gain structure, genre, effects) best matches the tonal target.
+2. ADJUST parameter values on existing components to better match the tonal
+   target. Use the manual_reference to understand what each parameter does.
+3. SWAP a component for a different one of the same type when the tonal
+   target clearly calls for a different variant (e.g. swap a Fender-style
+   amp for a Marshall-style one). Use manual_reference to understand the
+   replacement's parameters and set them appropriately.
+4. ADD components the exemplar lacks if the tonal target requires them
+   (e.g. add a delay pedal the exemplar doesn't have). Use the component
+   schema for parameter defaults and manual_reference for guidance.
+5. REMOVE components that contradict the tonal target (e.g. remove a chorus
+   if the target specifies a dry tone).
+6. PRESERVE structure — the exemplar was a working preset. Do not add
+   components just because they seem useful. Do not remove components
+   unless the tonal target actively conflicts with them.
+7. CABINET — always emit exactly one cabinet component as the final element.
+   Use the cabinet_lookup table: find the amp in your output, look up its
+   cab_value, and emit a Matched Cabinet Pro (156000) with that Cab value.
+   All other Matched Cabinet Pro parameters should use the exemplar's
+   values if it had one, otherwise use defaults from the schema.
+   The Cab parameter is an integer enum (not a normalised float) — emit
+   the cab_value from the lookup table as-is.
+8. ORDER — preserve signal chain order: effects → amp → cabinet.
+9. Do not include routing utilities (Split, CrossOver, Container).
+</refinement_rules>
 
 <output_schema>
 Return a JSON array. Each element must have exactly these fields:
 {
   "component_name": "exact GR7 component name",
   "component_id": <integer>,
-  "hardware_source": "descriptor",
-  "confidence": "estimated",
+  "base_exemplar": "name of exemplar preset used as starting point",
+  "modification": "unchanged" | "adjusted" | "swapped" | "added",
+  "confidence": "documented" | "inferred" | "estimated",
   "parameters": {
-    "<param_id>": <float>,
+    "<param_id>": <float or int>,
     ...
   }
 }
 
+modification values:
+  "unchanged" — component and all parameters kept from exemplar as-is
+  "adjusted"  — same component, one or more parameters changed
+  "swapped"   — different component replacing an exemplar component
+  "added"     — new component not present in the base exemplar
+
+confidence values:
+  "documented" — component unchanged from a factory preset
+  "inferred"   — parameters adjusted based on tonal target guidance
+  "estimated"  — component added or swapped without factory precedent
+
 Constraints:
 - All param_id keys must exactly match those in the component_schema.
-- All parameter values must be floats in the range [0.0, 1.0].
-- The parameters object must include every parameter listed in the component_schema.
+- All parameter values must be floats in the range [0.0, 1.0], EXCEPT the
+  Cab parameter on Matched Cabinet Pro which is an integer enum.
+- The parameters object must include EVERY parameter listed in the
+  component_schema for that component.
+- The last component must always be Matched Cabinet Pro (156000).
 </output_schema>
+
+<example>
+Tonal target mentions a high-gain, aggressive rock tone — Marshall-style amp,
+heavy overdrive, and tight low end.
+
+Base exemplar "800 Rocks" has: Tube Screamer (73000), Lead 800 (57000),
+Matched Cabinet Pro (156000).
+
+Adjustments needed: boost drive on the Tube Screamer, increase amp gain,
+tighten the low end. No components need swapping or adding.
+
+Output:
+[
+  {
+    "component_name": "Tube Screamer",
+    "component_id": 73000,
+    "base_exemplar": "800 Rocks",
+    "modification": "adjusted",
+    "confidence": "inferred",
+    "parameters": {"Pwr": 1.0, "Drv": 0.75, "Ton": 0.6, "Vol": 0.65}
+  },
+  {
+    "component_name": "Lead 800",
+    "component_id": 57000,
+    "base_exemplar": "800 Rocks",
+    "modification": "adjusted",
+    "confidence": "inferred",
+    "parameters": {"Pwr": 1.0, "Pr": 0.6, "Tb": 0.65, "Md": 0.7, "Bs": 0.4, "MV": 0.8, "Vol": 0.7, "Br": 0.5, "TSp": 0.45, "TDt": 0.0}
+  },
+  {
+    "component_name": "Matched Cabinet Pro",
+    "component_id": 156000,
+    "base_exemplar": "800 Rocks",
+    "modification": "adjusted",
+    "confidence": "documented",
+    "parameters": {"Pwr": 1.0, "MV": 0.45, "c": 0.2, "Cab": 10, "V": 1.0, "st": 1.0}
+  }
+]
+
+Note: Lead 800 → Cab=10 from the cabinet_lookup table.
+</example>
 """

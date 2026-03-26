@@ -7,9 +7,9 @@ loaded in your software. Describe a sound in natural language — referencing an
 or just a vibe — and it produces a downloadable Guitar Rig 7 preset file alongside a plain-language
 explanation of what it built and why.
 
-This is also a portfolio project demonstrating a multi-stage GenAI engineering pipeline: RAG with
-dual retrieval routes, binary file format reverse engineering, structured LLM output with exemplar
-grounding, and a full offline data pipeline from raw presets to a production mapping table.
+This is also a portfolio project demonstrating a multi-stage GenAI engineering pipeline: exemplar-first
+RAG retrieval, binary file format reverse engineering, structured LLM output with few-shot grounding,
+and a full offline data pipeline from raw presets to a searchable exemplar store.
 
 ---
 
@@ -61,15 +61,14 @@ flowchart TD
     end
 
     subgraph Phase2["Phase 2 — Component Mapping"]
-        D --> E[component_mapper.py\nextract hardware names]
-        E --> F{Hardware in\nmapping table?}
-        F -- Named route --> G[component_mapping.json\n147 GR7 components\nhardware alias lookup]
-        F -- Descriptor route --> H[ChromaDB\n118 GR7 manual chunks\nsemantic search]
-        G --> I[COMPONENT_SELECTION_PROMPT]
-        H --> J[DESCRIPTOR_SELECTION_PROMPT]
-        K[(exemplar_store.json\n1425 factory presets\nfew-shot grounding)] --> I
-        I --> L[Structured JSON\ncomponent list + normalised 0–1 parameters]
-        J --> L
+        D --> E[component_mapper.py\nexemplar-first retrieval]
+        E --> F[search_exemplars\ntop-5 tonally similar\nfactory presets]
+        E --> G[search_manual_for_categories\nrelevant GR7 manual chunks]
+        E --> H[amp_cabinet_lookup.json\ndeterministic amp → cabinet mapping]
+        F --> I[EXEMPLAR_REFINEMENT_PROMPT\nadjust best exemplar\nfor target tone]
+        G --> I
+        H --> I
+        I --> L[Structured JSON\ncomponent list + normalised 0–1 parameters\n+ deterministic cabinet]
     end
 
     subgraph Generation["Preset Generation"]
@@ -101,14 +100,13 @@ flowchart LR
         B --> H[build_manual_chunks.py\nPDF → 118 component chunks]
     end
 
-    subgraph Indexing["Indexing & mapping"]
+    subgraph Indexing["Indexing"]
         H --> I[build_retrieval_index.py\nChromaDB ingestion]
         I --> J[(ChromaDB\npersistent collection)]
-        E --> K[generate_component_mapping.py\n3-tier LLM mapping\nhuman review CSV]
-        C --> K
-        H --> K
-        K --> L[promote_component_mapping.py\nvalidated promotion]
-        L --> M[component_mapping.json\nhardware alias → component id]
+        G --> K[build_exemplar_index.py\nChromaDB exemplar index]
+        K --> L[(ChromaDB\nexemplar collection)]
+        E --> M[build_amp_cabinet_lookup.py\namp → Matched Cabinet Pro mapping]
+        M --> N[amp_cabinet_lookup.json]
     end
 ```
 
@@ -135,40 +133,37 @@ Key discoveries:
 This work lives in [`ngrr_parser.py`](src/tonedef/ngrr_parser.py) and
 [`ngrr_builder.py`](src/tonedef/ngrr_builder.py).
 
-### 2. Three-tier component mapping pipeline
+### 2. Exemplar-first component mapping
 
-Guitar Rig 7 has 147 components. Real-world gear documentation uses hundreds of different names
-for the hardware those components emulate. Mapping these reliably required a tiered approach:
+Rather than mapping hardware names to GR7 components via a lookup table, ToneDef uses an
+exemplar-first approach. Phase 2 retrieves the top-5 most tonally similar factory presets from a
+ChromaDB exemplar index (1425 presets), retrieves relevant manual chunks for context, and asks the
+LLM to adjust the best exemplar to match the target tone. The LLM modifies components and
+parameters rather than building from scratch, producing more realistic and playable results.
 
-| Tier | Source | Method | Confidence |
-|------|--------|--------|------------|
-| 1 | Ali Jamieson guitar gear equivalencies | Direct lookup — unambiguous 1:1 mappings only | DOCUMENTED |
-| 2 | GR7 manual text (118 chunks, ChromaDB) | LLM extraction from official component descriptions | DOCUMENTED / INFERRED |
-| 3 | Component parameter list only | LLM inference from component name + parameter structure | INFERRED / ESTIMATED |
+A deterministic amp-to-cabinet lookup (`amp_cabinet_lookup.json`) ensures every amp is paired with
+its correct Matched Cabinet Pro speaker — this is not left to LLM inference.
 
-The pipeline (`generate_component_mapping.py`) produces a reviewable CSV before promotion to the
-production JSON, allowing human validation of ambiguous mappings.
+### 3. Stratified RAG retrieval
 
-### 3. Dual-route RAG
+Phase 2 uses stratified retrieval across multiple ChromaDB collections:
 
-Phase 2 uses two retrieval routes depending on whether the hardware name is in the mapping table:
+**Exemplar search**: `search_exemplars()` queries the exemplar collection with the full Phase 1
+signal chain to find the most tonally similar factory presets. These serve as starting points for
+LLM refinement.
 
-**Named hardware route**: hardware name → `component_mapping.json` lookup → exact component id.
-Used when the LLM's phase 1 output mentions gear that has a known equivalent (e.g. "Marshall
-JCM800" → `804 Lead`).
-
-**Descriptor route**: when hardware is unmapped or the query is purely descriptive, the component
-name or sonic descriptor is used as a semantic query against the ChromaDB collection of GR7 manual
-chunks. The retrieved context goes into `DESCRIPTOR_SELECTION_PROMPT` for LLM disambiguation.
+**Manual chunk search**: `search_manual_for_categories()` performs category-stratified retrieval
+across the GR7 manual chunks (amps, effects, cabinets), ensuring each component type gets
+represented in the context rather than allowing one dominant category to crowd out others.
 
 ### 4. Exemplar grounding
 
 To prevent the LLM from hallucinating implausible parameter combinations, phase 2 prompts are
 grounded with real examples. 1425 factory presets were parsed into structured records
 (component lists, tags, metadata) and stored in `exemplar_store.json`. At inference time,
-`search_exemplars()` retrieves the most tonally similar presets via stratified ChromaDB search
-across tag categories, and `format_exemplar_context()` formats them as few-shot examples injected
-into `COMPONENT_SELECTION_PROMPT`.
+`search_exemplars()` retrieves the most tonally similar presets via ChromaDB search,
+and `format_exemplar_context()` formats them as few-shot examples injected into
+`EXEMPLAR_REFINEMENT_PROMPT`.
 
 ### 5. Prompt engineering
 
@@ -184,9 +179,11 @@ into `COMPONENT_SELECTION_PROMPT`.
   contradictory requirements (flag and resolve with stated interpretation), obscure recordings
   (best-effort LOW confidence)
 
-**COMPONENT_SELECTION_PROMPT** (Phase 2) is the grounded mapping prompt. It receives the phase 1
-output, the hardware index, retrieved manual chunks, and formatted exemplar presets. It must output
-a structured JSON list — component id, component name, parameters as normalised floats.
+**EXEMPLAR_REFINEMENT_PROMPT** (Phase 2) receives the Phase 1 signal chain, the top-5 exemplar
+presets (with full component and parameter data), relevant manual chunks, the component schema,
+and the amp-cabinet lookup table. It must select the best exemplar as a starting point, then adjust
+components and parameters to match the target tone — outputting structured JSON with component ids,
+names, and normalised 0–1 parameters.
 
 ### 6. Parameter value clamping
 
@@ -204,10 +201,10 @@ src/tonedef/
     ngrr_parser.py        parse .ngrr binary files → XML, component lists, metadata
     ngrr_builder.py       write .ngrr binary files — transplant, name update, UUID refresh
     xml_builder.py        assemble non-fix-components XML from component JSON
-    component_mapper.py   phase 2 orchestrator — lookup, retrieve, LLM call, fill defaults
+    component_mapper.py   phase 2 orchestrator — exemplar retrieval, LLM refinement, cabinet enforcement
     exemplar_store.py     build and query the preset exemplar dataset
-    retriever.py          ChromaDB retrieval — hardware search, descriptor search, exemplar search
-    prompts.py            SYSTEM_PROMPT, COMPONENT_SELECTION_PROMPT, DESCRIPTOR_SELECTION_PROMPT
+    retriever.py          ChromaDB retrieval — exemplar search, manual chunk search, category-stratified search
+    prompts.py            SYSTEM_PROMPT, EXEMPLAR_REFINEMENT_PROMPT
     paths.py              all filesystem paths in one place
     settings.py           configuration values
 
@@ -215,16 +212,16 @@ scripts/
     build_component_schema.py     parse presets → component_schema.json
     build_tag_catalogue.py        parse presets → tag_catalogue.json
     build_manual_chunks.py        chunk GR7 manual PDF → gr_manual_chunks.json
-    generate_component_mapping.py LLM mapping generation → reviewable CSV
-    promote_component_mapping.py  validate and promote reviewed CSV → component_mapping.json
     build_retrieval_index.py      index manual chunks into ChromaDB
     build_exemplar_index.py       index factory presets → exemplar_store.json
+    build_amp_cabinet_lookup.py   build amp → Matched Cabinet Pro lookup table
+    check_pipeline.py             verify all pipeline artefacts exist
 
-tests/                    106 tests, all passing
-notebooks/marimo/         8 exploration notebooks
+tests/                    101 tests, all passing
+notebooks/marimo/         5 exploration notebooks
 data/
     external/presets/     1425 factory .ngrr presets (source data, read-only)
-    processed/            component_schema.json, component_mapping.json, tag_catalogue.json,
+    processed/            component_schema.json, amp_cabinet_lookup.json, tag_catalogue.json,
                           exemplar_store.json, gr_manual_chunks.json, chromadb/
 ```
 
@@ -265,11 +262,9 @@ To rebuild the data pipeline from scratch (requires the factory presets and GR7 
 uv run python scripts/build_component_schema.py
 uv run python scripts/build_tag_catalogue.py
 uv run python scripts/build_manual_chunks.py
-uv run python scripts/generate_component_mapping.py
-# review data/interim/component_mapping_review.csv
-uv run python scripts/promote_component_mapping.py
 uv run python scripts/build_retrieval_index.py
 uv run python scripts/build_exemplar_index.py
+uv run python scripts/build_amp_cabinet_lookup.py
 ```
 
 ---

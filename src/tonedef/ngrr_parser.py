@@ -213,20 +213,37 @@ def merge_into_catalogue(
                 entry["parameters"][pid] = {
                     "param_id": pid,
                     "param_name": param["param_name"],
-                    "default_value": param["value"],
                     "seen_values": [param["value"]],
                 }
             else:
-                if param["value"] not in entry["parameters"][pid]["seen_values"]:
-                    entry["parameters"][pid]["seen_values"].append(param["value"])
+                entry["parameters"][pid]["seen_values"].append(param["value"])
 
     return catalogue
+
+
+def _compute_mode(values: list[float]) -> tuple[float, int]:
+    """
+    Return (mode_value, mode_count) for a list of floats.
+
+    Values are rounded to 6 decimal places before counting so that
+    minor floating-point differences don't fragment the distribution.
+    """
+    from collections import Counter
+
+    rounded = [round(v, 6) for v in values]
+    counter = Counter(rounded)
+    mode_val, mode_count = counter.most_common(1)[0]
+    return mode_val, mode_count
 
 
 def finalise_catalogue(catalogue: dict) -> dict:
     """
     Convert the internal catalogue format to the final serialisable format.
-    Replaces raw seen_values lists with summary statistics.
+
+    Replaces raw seen_values lists with summary statistics.  ``default_value``
+    is set to the **mode** of all observed values when the mode accounts for
+    at least 15 % of observations, otherwise the **median** is used as a
+    safer fallback for high-cardinality continuous parameters.
     """
     finalised = {}
     for name in sorted(catalogue.keys()):
@@ -234,20 +251,30 @@ def finalise_catalogue(catalogue: dict) -> dict:
         params = []
         for param in entry["parameters"].values():
             values = param["seen_values"]
-            summary = {
+            mode_val, mode_count = _compute_mode(values)
+            total = len(values)
+            median_val = round(statistics.median(values), 6)
+
+            # Use mode when it represents a meaningful cluster (>=15%)
+            default = mode_val if mode_count / total >= 0.15 else median_val
+
+            summary: dict = {
                 "param_id": param["param_id"],
                 "param_name": param["param_name"],
-                "default_value": param["default_value"],
+                "default_value": default,
             }
-            if len(values) > 1:
+            if total > 1:
+                sorted_vals = sorted(values)
                 summary["stats"] = {
-                    "count": len(values),
+                    "count": total,
                     "min": round(min(values), 6),
                     "max": round(max(values), 6),
                     "mean": round(statistics.mean(values), 6),
-                    "median": round(statistics.median(values), 6),
-                    "p25": round(sorted(values)[len(values) // 4], 6),
-                    "p75": round(sorted(values)[3 * len(values) // 4], 6),
+                    "median": median_val,
+                    "p25": round(sorted_vals[total // 4], 6),
+                    "p75": round(sorted_vals[3 * total // 4], 6),
+                    "mode": mode_val,
+                    "mode_count": mode_count,
                 }
             else:
                 summary["stats"] = {
@@ -258,6 +285,8 @@ def finalise_catalogue(catalogue: dict) -> dict:
                     "median": values[0],
                     "p25": values[0],
                     "p75": values[0],
+                    "mode": values[0],
+                    "mode_count": 1,
                 }
             params.append(summary)
         entry["parameters"] = params

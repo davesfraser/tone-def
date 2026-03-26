@@ -38,10 +38,10 @@ FILES: list[tuple[str, object, int, str]] = [
         "uv run python scripts/build_manual_chunks.py",
     ),
     (
-        "Component mapping",
-        DATA_PROCESSED / "component_mapping.json",
-        10_000,
-        "uv run python scripts/promote_component_mapping.py",
+        "Amp-cabinet lookup",
+        DATA_PROCESSED / "amp_cabinet_lookup.json",
+        500,
+        "uv run python scripts/build_amp_cabinet_lookup.py",
     ),
     (
         "Exemplar store",
@@ -135,30 +135,23 @@ def _check_schema_integrity() -> list[str]:
     print("\nSchema integrity")
     print("----------------")
     schema_path = DATA_PROCESSED / "component_schema.json"
-    mapping_path = DATA_PROCESSED / "component_mapping.json"
+    lookup_path = DATA_PROCESSED / "amp_cabinet_lookup.json"
 
-    if schema_path.exists() and mapping_path.exists():
+    if schema_path.exists():
         with open(schema_path) as f:
             schema: dict = json.load(f)
-        with open(mapping_path) as f:
-            mapping: list[dict] = json.load(f)
+        print(f"  {OK}  Component schema: {len(schema)} components")
+    else:
+        print(f"  {FAIL}  Component schema: missing")
+        issues.append("component_schema.json missing — run build_component_schema.py")
 
-        # Schema is keyed by component_name; mapping rows reference component_name
-        schema_names = set(schema.keys())
-        mapping_names = {row["component_name"] for row in mapping if "component_name" in row}
-        orphaned = mapping_names - schema_names
-
-        print(f"  {OK}  Component schema: {len(schema_names)} components")
-        print(
-            f"  {OK}  Component mapping: {len(mapping)} rows, {len(mapping_names)} unique component names"
-        )
-        if orphaned:
-            print(f"  {WARN}  {len(orphaned)} mapping entries reference unknown component names")
-            issues.append(
-                f"Orphaned mapping names: {sorted(orphaned)[:5]}… — re-run promote_component_mapping.py"
-            )
-        else:
-            print(f"  {OK}  All mapping names present in schema")
+    if lookup_path.exists():
+        with open(lookup_path) as f:
+            lookup: dict = json.load(f)
+        print(f"  {OK}  Amp-cabinet lookup: {len(lookup)} entries")
+    else:
+        print(f"  {FAIL}  Amp-cabinet lookup: missing")
+        issues.append("amp_cabinet_lookup.json missing — run build_amp_cabinet_lookup.py")
     return issues
 
 

@@ -26,6 +26,8 @@ DATA_INTERIM = DATA_DIR / "interim"  # partially processed
 DATA_PROCESSED = DATA_DIR / "processed"  # clean, analysis-ready outputs
 DATA_EXTERNAL = DATA_DIR / "external"  # third-party / downloaded data
 
+OUTPUT_PRESETS = DATA_PROCESSED / "output_presets"  # generated .ngrr presets
+
 MODELS_DIR = project_root() / "models"  # serialised models and artefacts
 FIGURES_DIR = project_root() / "reports" / "figures"  # generated plots and charts
 NOTEBOOKS_DIR = project_root() / "notebooks"  # useful if scripts need to reference notebooks

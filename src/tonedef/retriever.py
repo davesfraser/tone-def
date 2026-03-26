@@ -1,25 +1,19 @@
 """
 retriever.py
 ------------
-RAG retrieval layer for ToneDef Phase 2.
+RAG retrieval layer for ToneDef Phase 2 (exemplar-first architecture).
 
-Provides two retrieval functions:
+Provides:
+  search_exemplars(query)
+      Retrieve tonally similar factory presets from the exemplar collection.
+  get_manual_chunks_for_components(names)
+      Retrieve manual descriptions for specific GR7 components.
+  search_manual_for_categories(query, exclude_names)
+      Category-stratified manual search for components the exemplars lack.
 
-  search_by_hardware(name)
-      Semantic search against GR7 manual descriptions.
-      Used when a hardware name has no match in component_mapping.json.
-
-  search_by_descriptor(descriptor)
-      Category-stratified semantic search for tonal descriptors. Queries
-      each GR7 component category separately (Amplifiers, Distortion, etc.)
-      and merges results, so a query dominated by one tonal noun (e.g.
-      "reverb") still surfaces relevant amps and drive units.
-
-Both functions query the same ChromaDB collection — the distinction is
-only in what string is used as the query and how results are retrieved.
-
-Build the persisted collection once with:
+Build the persisted collections once with:
     scripts/build_retrieval_index.py
+    scripts/build_exemplar_index.py
 """
 
 from __future__ import annotations
@@ -76,49 +70,7 @@ def _get_exemplars_store() -> dict[str, dict]:
     return _exemplars_store
 
 
-def search_by_hardware(hardware_name: str, n_results: int = 5) -> list[dict]:
-    """
-    Retrieve GR7 component descriptions most similar to a hardware name.
-
-    Used as a fallback when lookup_hardware() returns no mapping rows —
-    surfaces descriptions of plausible GR7 components by semantic similarity.
-
-    Args:
-        hardware_name: The real-world hardware name (e.g. "Dallas Arbiter Fuzz Face").
-        n_results: Maximum number of results to return.
-
-    Returns:
-        List of dicts with keys: component_name, category, text, distance.
-    """
-    return _query(_QUERY_PREFIX_HARDWARE + hardware_name, n_results)
-
-
-def search_by_descriptor(descriptor: str, n_results: int = 8) -> list[dict]:
-    """
-    Retrieve GR7 component descriptions most similar to a tonal descriptor.
-
-    Uses category-stratified retrieval — queries each category in
-    _DESCRIPTOR_ALLOCATION separately, then merges and sorts by distance.
-    This prevents a query that mentions "reverb" from returning only reverb
-    components; a typical guitar signal chain needs amps, drive units, and
-    time-based effects simultaneously.
-
-    n_results is retained for API compatibility but is not used; the total
-    returned is governed by _DESCRIPTOR_ALLOCATION (default: 8 results).
-
-    Args:
-        descriptor: A tonal descriptor string (e.g. "bright clean jangly shimmer
-                    with chorus and reverb, low gain, wide stereo").
-        n_results: Unused — retained for API compatibility.
-
-    Returns:
-        List of dicts with keys: component_name, category, text, distance,
-        sorted by ascending distance.
-    """
-    return _query_stratified(descriptor, _DESCRIPTOR_ALLOCATION)
-
-
-def search_exemplars(query: str, n_results: int = 3) -> list[dict]:
+def search_exemplars(query: str, n_results: int = 5) -> list[dict]:
     """
     Retrieve exemplar preset records most similar to a tonal query.
 
@@ -212,38 +164,79 @@ def _query_stratified(query_text: str, allocation: dict[str, int]) -> list[dict]
     return items
 
 
-def _query(query_text: str, n_results: int) -> list[dict]:
-    collection = _get_collection()
-    results = collection.query(
-        query_texts=[query_text],
-        n_results=n_results,
-        include=["documents", "metadatas", "distances"],
-    )
-    items = []
-    for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
-        strict=False,
-    ):
-        items.append(
-            {
-                "component_name": meta.get("component_name", ""),
-                "category": meta.get("category", ""),
-                "text": doc,
-                "distance": dist,
-            }
-        )
-    return items
-
-
 def collection_path() -> Path:
     """Return the path where the ChromaDB collections are persisted."""
     return _PERSIST_DIR
 
 
-# Prefix that tilts hardware-name queries toward amp/effect matching
-_QUERY_PREFIX_HARDWARE = "Guitar effect or amplifier similar to: "
+def get_manual_chunks_for_components(component_names: set[str]) -> list[dict]:
+    """
+    Retrieve manual descriptions for a specific set of GR7 component names.
+
+    Queries the manual collection by exact component_name match. Used to
+    provide the LLM with documentation for components already present in
+    the selected exemplar presets.
+
+    Args:
+        component_names: Set of exact GR7 component names.
+
+    Returns:
+        List of dicts with keys: component_name, category, text.
+    """
+    if not component_names:
+        return []
+    collection = _get_collection()
+    items: list[dict] = []
+    for name in sorted(component_names):
+        try:
+            results = collection.get(
+                where={"component_name": name},
+                include=["documents", "metadatas"],
+            )
+        except Exception:
+            continue
+        for doc, meta in zip(
+            results.get("documents", []),
+            results.get("metadatas", []),
+            strict=False,
+        ):
+            items.append(
+                {
+                    "component_name": meta.get("component_name", name),
+                    "category": meta.get("category", ""),
+                    "text": doc,
+                }
+            )
+    return items
+
+
+def search_manual_for_categories(
+    query: str,
+    exclude_names: set[str],
+    categories: set[str] | None = None,
+    n_per_category: int = 2,
+) -> list[dict]:
+    """
+    Retrieve manual descriptions for components the exemplar may be missing.
+
+    Searches each category and returns results whose component_name is NOT
+    in exclude_names. This surfaces candidates for "adding a missing effect"
+    — e.g. if the exemplar has no delay but the tonal target wants one.
+
+    Args:
+        query: Tonal query string (Phase 1 output).
+        exclude_names: Component names already covered (from exemplars).
+        categories: Optional set of category names to search. If None,
+                    searches all categories in _DESCRIPTOR_ALLOCATION.
+        n_per_category: Max results per category before filtering.
+
+    Returns:
+        Deduplicated list of dicts with keys: component_name, category, text.
+    """
+    allocation = dict.fromkeys(categories or _DESCRIPTOR_ALLOCATION.keys(), n_per_category)
+    raw = _query_stratified(query, allocation)
+    return [r for r in raw if r["component_name"] not in exclude_names]
+
 
 # Per-category result budget for stratified descriptor search.
 # Ensures a full guitar signal chain is covered even when the query text

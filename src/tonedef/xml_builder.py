@@ -93,11 +93,14 @@ def build_signal_chain_xml(
         params_el.set("static-automation", "0")
 
         for param_id, value in parameters.items():
-            clamped = max(0.0, min(1.0, float(value)))
+            # Integer params (enums, selectors, step counts) are written
+            # as bare integers; continuous params as 6-decimal floats.
+            # Values are already range-checked by fill_defaults.
+            formatted = str(value) if isinstance(value, int) else f"{float(value):.6f}"
             param_el = SubElement(params_el, "parameter")
             param_el.set("id", param_id)
             param_el.set("name", param_name_lookup.get(param_id, param_id))
-            param_el.set("value", f"{clamped:.6f}")
+            param_el.set("value", formatted)
             # <base-parameters remote-max="1.000000" remote-min="0.000000"/>
             base_el = SubElement(param_el, "base-parameters")
             base_el.set("remote-max", "1.000000")

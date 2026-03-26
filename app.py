@@ -63,10 +63,12 @@ if "last_result" in st.session_state:
 if "last_components" in st.session_state:
     with st.expander("Components selected", expanded=False):
         for comp in st.session_state["last_components"]:
-            route = "descriptor" if comp.get("hardware_source") == "descriptor" else "hardware"
+            mod = comp.get("modification", "—")
+            base = comp.get("base_exemplar", "")
+            origin = f"from _{base}_" if base else ""
             st.markdown(
                 f"**{comp['component_name']}** (id `{comp['component_id']}`) "
-                f"← `{comp.get('hardware_source', '—')}` · {comp.get('confidence', '')} · _{route} route_"
+                f"· {mod} · {comp.get('confidence', '')} {origin}"
             )
 
 if "last_preset" in st.session_state:
