@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # Phase 2 (component mapping): low for deterministic JSON output
     phase2_temperature: float = Field(default=0.2)
 
+    # --- Exemplar matching weights ---
+    # Structured scoring: tag overlap vs component name overlap
+    exemplar_tag_weight: float = Field(default=0.6)
+    exemplar_component_weight: float = Field(default=0.4)
+
 
 # A single shared instance for import throughout the project
 # Usage: from {{ package_name }}.settings import settings

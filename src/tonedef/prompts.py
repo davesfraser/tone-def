@@ -446,14 +446,16 @@ added, use default_value from the component schema.
 6. PRESERVE structure — the exemplar was a working preset. Do not add
    components just because they seem useful. Do not remove components
    unless the tonal target actively conflicts with them.
-7. CABINET — always emit exactly one cabinet component as the final element.
-   Use the cabinet_lookup table: find the amp in your output, look up its
-   cab_value, and emit a Matched Cabinet Pro (156000) with that Cab value.
-   All other Matched Cabinet Pro parameters should use the exemplar's
-   values if it had one, otherwise use defaults from the schema.
-   The Cab parameter is an integer enum (not a normalised float) — emit
-   the cab_value from the lookup table as-is.
-8. ORDER — preserve signal chain order: effects → amp → cabinet.
+7. CABINET — always emit exactly one Matched Cabinet Pro component after
+   the amp. Post-cabinet effects (recording chain, studio processing)
+   follow the cabinet. Use the cabinet_lookup table: find the amp in
+   your output, look up its cab_value, and emit a Matched Cabinet Pro
+   (156000) with that Cab value. All other Matched Cabinet Pro parameters
+   should use the exemplar's values if it had one, otherwise use defaults
+   from the schema. The Cab parameter is an integer enum (not a
+   normalised float) — emit the cab_value from the lookup table as-is.
+8. ORDER — preserve signal chain order: pre-amp effects → amp → cabinet
+   → post-cabinet effects (recording chain, studio processing).
 9. Do not include routing utilities (Split, CrossOver, Container).
 </refinement_rules>
 
@@ -488,7 +490,8 @@ Constraints:
   Cab parameter on Matched Cabinet Pro which is an integer enum.
 - The parameters object must include EVERY parameter listed in the
   component_schema for that component.
-- The last component must always be Matched Cabinet Pro (156000).
+- Matched Cabinet Pro (156000) must appear after the amp. Post-cabinet
+  effects (recording chain, studio processing) follow it.
 </output_schema>
 
 <example>

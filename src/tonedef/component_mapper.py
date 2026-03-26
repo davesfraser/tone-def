@@ -11,7 +11,7 @@ Exemplar-first architecture:
   5. Call the Anthropic API (Phase 2 LLM call)
   6. Parse and validate the JSON response
   7. Fill defaults for any omitted parameters from the schema
-  8. Enforce correct cabinet via amp-to-cabinet lookup
+  8. Enforce correct cabinet inserted after amp via amp-to-cabinet lookup
   9. Return an ordered list of component dicts ready for xml_builder
 """
 
@@ -150,27 +150,84 @@ def _find_amp_name(components: list[dict], amp_cabinet_lookup: dict[str, dict]) 
     return None
 
 
+def _find_amp_index(components: list[dict], amp_cabinet_lookup: dict[str, dict]) -> int | None:
+    """Return the list index of the amp component, or None if absent."""
+    lookup_lower = {k.lower() for k in amp_cabinet_lookup}
+    for idx, comp in enumerate(components):
+        if comp.get("component_name", "").lower() in lookup_lower:
+            return idx
+    return None
+
+
+def _extract_exemplar_cabinet_params(
+    exemplars: list[dict],
+) -> dict[str, float | int] | None:
+    """Extract cabinet parameters from the top exemplar's actual preset data.
+
+    Searches the first exemplar's component list for a Matched Cabinet Pro
+    entry and returns its parameter dict.  Falls back through subsequent
+    exemplars if the first has no cabinet.
+
+    Args:
+        exemplars: Exemplar records from the store (each has a ``components``
+            list with ``{component_name, component_id, parameters}`` dicts).
+
+    Returns:
+        Parameter dict ``{param_id: value}`` from the exemplar's cabinet,
+        or ``None`` if none of the exemplars contain a Matched Cabinet Pro.
+    """
+    for ex in exemplars:
+        for comp in ex.get("components", []):
+            if comp.get("component_name") == _MATCHED_CABINET_PRO_NAME:
+                return dict(comp.get("parameters", {}))
+    return None
+
+
 def _make_matched_cabinet_pro(
     amp_name: str | None,
     amp_cabinet_lookup: dict[str, dict],
     schema: dict,
     base_exemplar: str,
+    exemplar_cabinet_params: dict[str, float | int] | None = None,
+    llm_cabinet_params: dict[str, float | int] | None = None,
 ) -> dict:
-    """Build a Matched Cabinet Pro component with the correct Cab value.
+    """Build a Matched Cabinet Pro with three-tier parameter layering.
+
+    Priority (highest wins):
+      1. Cab — always from amp_cabinet_lookup (deterministic).
+      2. LLM explicit — params the LLM set on its emitted cabinet,
+         reflecting tonal-target decisions (e.g. more room for airy tones).
+      3. Exemplar factory data — proven-good values from the base preset.
+      4. Schema defaults — fallback for anything still missing.
 
     Args:
         amp_name: Amp component name from the lookup (or None).
         amp_cabinet_lookup: The amp-to-cabinet lookup table.
         schema: Parsed component_schema.json.
         base_exemplar: Name of the base exemplar preset.
+        exemplar_cabinet_params: Parameter dict from the exemplar store's
+            actual factory preset data.  Provides sensible base values
+            for Volume, X-Fade etc. when the LLM omits them.
+        llm_cabinet_params: Parameter dict the LLM explicitly emitted
+            (extracted *before* fill_defaults).  These reflect tonal-target
+            decisions and take priority over exemplar values.  Cab is always
+            overridden by the lookup.
 
     Returns:
         Component dict for Matched Cabinet Pro.
     """
+    # Layer 4: schema defaults
     params: dict[str, float | int] = {
         p["param_id"]: p["default_value"]
         for p in schema.get(_MATCHED_CABINET_PRO_NAME, {}).get("parameters", [])
     }
+    # Layer 3: exemplar factory data
+    if exemplar_cabinet_params:
+        params.update(exemplar_cabinet_params)
+    # Layer 2: LLM explicit choices (tonal-target informed)
+    if llm_cabinet_params:
+        params.update(llm_cabinet_params)
+    # Layer 1: deterministic Cab from lookup (always wins)
     if amp_name and amp_name in amp_cabinet_lookup:
         params["Cab"] = int(amp_cabinet_lookup[amp_name]["cab_value"])
 
@@ -347,15 +404,34 @@ def map_components(
     if not isinstance(components, list):
         raise ValueError(f"Phase 2 LLM returned non-array JSON: {type(components)}")
 
+    # 9a. Extract LLM cabinet params BEFORE fill_defaults so we can
+    # distinguish explicit LLM choices from schema-default backfills.
+    llm_cab_params: dict[str, float | int] | None = None
+    for c in components:
+        if "cabinet" in c.get("component_name", "").lower():
+            llm_cab_params = c.get("parameters", {})
+            break
+
     components = fill_defaults(components, schema)
 
-    # 9. Enforce cabinet — remove any LLM-emitted cabinet, then append the
-    # correct Matched Cabinet Pro with deterministic Cab value from lookup.
+    # 9b. Enforce cabinet — three-tier param layering:
+    #   schema defaults → exemplar factory data → LLM explicit → Cab lookup
     base_exemplar = components[0].get("base_exemplar", "") if components else ""
+    exemplar_cab_params = _extract_exemplar_cabinet_params(exemplars)
     components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
     amp_name = _find_amp_name(components, amp_cabinet_lookup)
-    components.append(
-        _make_matched_cabinet_pro(amp_name, amp_cabinet_lookup, schema, base_exemplar)
+    cabinet = _make_matched_cabinet_pro(
+        amp_name,
+        amp_cabinet_lookup,
+        schema,
+        base_exemplar,
+        exemplar_cab_params,
+        llm_cab_params,
     )
+    amp_idx = _find_amp_index(components, amp_cabinet_lookup)
+    if amp_idx is not None:
+        components.insert(amp_idx + 1, cabinet)
+    else:
+        components.append(cabinet)
 
     return components

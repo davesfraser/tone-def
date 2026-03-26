@@ -10,6 +10,8 @@ from __future__ import annotations
 import pytest
 
 from tonedef.component_mapper import (
+    _extract_exemplar_cabinet_params,
+    _find_amp_index,
     _find_amp_name,
     _make_matched_cabinet_pro,
     build_cabinet_lookup_context,
@@ -228,6 +230,121 @@ def test_make_matched_cabinet_pro_base_exemplar() -> None:
     assert result["base_exemplar"] == "my preset"
 
 
+def test_make_matched_cabinet_pro_carries_forward_exemplar_params() -> None:
+    """Non-Cab params from the LLM-emitted cabinet override schema defaults."""
+    exemplar_params = {"Vol": 0.45, "Cab": 99}
+    result = _make_matched_cabinet_pro(
+        "Lead 800",
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=exemplar_params,
+    )
+    # Vol carried forward from exemplar
+    assert result["parameters"]["Vol"] == pytest.approx(0.45)
+    # Cab always overridden by lookup (Lead 800 → 10)
+    assert result["parameters"]["Cab"] == 10
+
+
+def test_make_matched_cabinet_pro_exemplar_params_no_amp() -> None:
+    """Exemplar params still apply when no amp is found (Cab stays from exemplar)."""
+    exemplar_params = {"Vol": 0.6, "Cab": 5}
+    result = _make_matched_cabinet_pro(
+        None,
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=exemplar_params,
+    )
+    assert result["parameters"]["Vol"] == pytest.approx(0.6)
+    # No amp found, so Cab keeps exemplar value (not overridden)
+    assert result["parameters"]["Cab"] == 5
+
+
+def test_make_matched_cabinet_pro_none_exemplar_params_uses_defaults() -> None:
+    """When no exemplar cabinet existed, schema defaults are used."""
+    result = _make_matched_cabinet_pro(
+        "Lead 800",
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=None,
+    )
+    assert result["parameters"]["Vol"] == pytest.approx(0.7)  # schema default
+    assert result["parameters"]["Cab"] == 10  # lookup override
+
+
+def test_make_matched_cabinet_pro_llm_overrides_exemplar() -> None:
+    """LLM explicit choices beat exemplar values (e.g. airy tone → more room)."""
+    exemplar_params = {"Vol": 0.45, "Cab": 99}
+    llm_params = {"Vol": 0.6}  # LLM chose a different volume
+    result = _make_matched_cabinet_pro(
+        "Lead 800",
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=exemplar_params,
+        llm_cabinet_params=llm_params,
+    )
+    # LLM wins over exemplar for Vol
+    assert result["parameters"]["Vol"] == pytest.approx(0.6)
+    # Cab always from lookup
+    assert result["parameters"]["Cab"] == 10
+
+
+def test_make_matched_cabinet_pro_three_tier_layering() -> None:
+    """Schema default < exemplar < LLM < Cab lookup — full chain."""
+    # Schema has Vol=0.7, Cab=0
+    exemplar_params = {"Vol": 0.45}  # overrides schema Vol
+    llm_params = {"Vol": 0.8}  # overrides exemplar Vol
+    result = _make_matched_cabinet_pro(
+        "Lead 800",
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=exemplar_params,
+        llm_cabinet_params=llm_params,
+    )
+    assert result["parameters"]["Vol"] == pytest.approx(0.8)  # LLM wins
+    assert result["parameters"]["Cab"] == 10  # lookup wins over everything
+
+
+def test_make_matched_cabinet_pro_llm_only_no_exemplar() -> None:
+    """LLM params work even when no exemplar cabinet exists."""
+    llm_params = {"Vol": 0.55}
+    result = _make_matched_cabinet_pro(
+        "Lead 800",
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=None,
+        llm_cabinet_params=llm_params,
+    )
+    assert result["parameters"]["Vol"] == pytest.approx(0.55)
+    assert result["parameters"]["Cab"] == 10
+
+
+def test_make_matched_cabinet_pro_exemplar_fills_gaps_llm_missed() -> None:
+    """Exemplar provides values for params the LLM didn't explicitly set."""
+    # Schema has Vol=0.7 and Cab=0
+    # Exemplar sets both
+    exemplar_params = {"Vol": 0.45, "Cab": 23}
+    # LLM only set Cab (which lookup will override anyway)
+    llm_params = {"Cab": 15}
+    result = _make_matched_cabinet_pro(
+        "Lead 800",
+        _AMP_CABINET_LOOKUP,
+        _SCHEMA_WITH_CABINET,
+        "preset",
+        exemplar_cabinet_params=exemplar_params,
+        llm_cabinet_params=llm_params,
+    )
+    # Vol from exemplar (LLM didn't touch it)
+    assert result["parameters"]["Vol"] == pytest.approx(0.45)
+    # Cab from lookup (always wins)
+    assert result["parameters"]["Cab"] == 10
+
+
 # ---------------------------------------------------------------------------
 # fill_defaults
 # ---------------------------------------------------------------------------
@@ -337,3 +454,217 @@ def test_fill_defaults_cab_param_cast_to_int() -> None:
     result = fill_defaults(components, _FILL_SCHEMA)
     assert result[0]["parameters"]["Cab"] == 10
     assert isinstance(result[0]["parameters"]["Cab"], int)
+
+
+# ---------------------------------------------------------------------------
+# _find_amp_index
+# ---------------------------------------------------------------------------
+
+
+def test_find_amp_index_returns_correct_position() -> None:
+    components = [
+        {"component_name": "Tube Screamer"},
+        {"component_name": "Lead 800"},
+        {"component_name": "Solid EQ"},
+    ]
+    result = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    assert result == 1
+
+
+def test_find_amp_index_case_insensitive() -> None:
+    components = [{"component_name": "lead 800"}]
+    result = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    assert result == 0
+
+
+def test_find_amp_index_no_match() -> None:
+    components = [{"component_name": "Tube Screamer"}, {"component_name": "Solid EQ"}]
+    result = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    assert result is None
+
+
+def test_find_amp_index_empty_list() -> None:
+    result = _find_amp_index([], _AMP_CABINET_LOOKUP)
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# _extract_exemplar_cabinet_params
+# ---------------------------------------------------------------------------
+
+_EXEMPLARS_WITH_CABINET = [
+    {
+        "preset_name": "800 Rocks",
+        "tags": ["Distorted", "Rock"],
+        "components": [
+            {"component_name": "Tube Screamer", "component_id": 73000, "parameters": {"Drv": 0.6}},
+            {"component_name": "Lead 800", "component_id": 57000, "parameters": {"Gn": 0.7}},
+            {
+                "component_name": "Matched Cabinet Pro",
+                "component_id": 156000,
+                "parameters": {"Pwr": 1.0, "MV": 0.45, "c": 0.12, "Cab": 10.0, "V": 0.0, "st": 1.0},
+            },
+        ],
+    },
+]
+
+
+def test_extract_exemplar_cabinet_params_returns_cabinet() -> None:
+    result = _extract_exemplar_cabinet_params(_EXEMPLARS_WITH_CABINET)
+    assert result is not None
+    assert result["MV"] == pytest.approx(0.45)
+    assert result["c"] == pytest.approx(0.12)
+
+
+def test_extract_exemplar_cabinet_params_no_cabinet() -> None:
+    exemplars = [
+        {
+            "preset_name": "Dry",
+            "tags": [],
+            "components": [
+                {"component_name": "Tube Screamer", "component_id": 73000, "parameters": {}},
+            ],
+        },
+    ]
+    result = _extract_exemplar_cabinet_params(exemplars)
+    assert result is None
+
+
+def test_extract_exemplar_cabinet_params_falls_through() -> None:
+    """If the first exemplar has no cabinet, fall through to the next."""
+    exemplars = [
+        {
+            "preset_name": "NoCab",
+            "tags": [],
+            "components": [
+                {"component_name": "Lead 800", "component_id": 57000, "parameters": {}},
+            ],
+        },
+        _EXEMPLARS_WITH_CABINET[0],
+    ]
+    result = _extract_exemplar_cabinet_params(exemplars)
+    assert result is not None
+    assert result["MV"] == pytest.approx(0.45)
+
+
+def test_extract_exemplar_cabinet_params_empty() -> None:
+    result = _extract_exemplar_cabinet_params([])
+    assert result is None
+
+
+def test_extract_exemplar_cabinet_params_returns_copy() -> None:
+    """Returned dict must be a copy so mutations don't affect the exemplar store."""
+    result = _extract_exemplar_cabinet_params(_EXEMPLARS_WITH_CABINET)
+    assert result is not None
+    result["MV"] = 999
+    original = _EXEMPLARS_WITH_CABINET[0]["components"][2]["parameters"]["MV"]
+    assert original == pytest.approx(0.45)
+
+
+# ---------------------------------------------------------------------------
+# Cabinet insertion ordering
+# ---------------------------------------------------------------------------
+
+
+def test_cabinet_inserted_after_amp_not_at_end() -> None:
+    """Post-cabinet effects must remain after the cabinet, not be displaced."""
+    components = [
+        {"component_name": "Tube Screamer", "component_id": 73000, "parameters": {}},
+        {"component_name": "Lead 800", "component_id": 57000, "parameters": {}},
+        {"component_name": "Solid EQ", "component_id": 121000, "parameters": {}},
+    ]
+    # Simulate the enforcement logic from map_components
+    base_exemplar = "test"
+    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
+    cabinet = _make_matched_cabinet_pro(
+        amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
+    )
+    amp_idx = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    if amp_idx is not None:
+        components.insert(amp_idx + 1, cabinet)
+    else:
+        components.append(cabinet)
+
+    names = [c["component_name"] for c in components]
+    assert names == ["Tube Screamer", "Lead 800", "Matched Cabinet Pro", "Solid EQ"]
+
+
+def test_cabinet_appended_when_no_amp() -> None:
+    """When no amp is found, cabinet falls back to end of chain."""
+    components = [
+        {"component_name": "Tube Screamer", "component_id": 73000, "parameters": {}},
+        {"component_name": "Solid EQ", "component_id": 121000, "parameters": {}},
+    ]
+    base_exemplar = "test"
+    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
+    cabinet = _make_matched_cabinet_pro(
+        amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
+    )
+    amp_idx = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    if amp_idx is not None:
+        components.insert(amp_idx + 1, cabinet)
+    else:
+        components.append(cabinet)
+
+    names = [c["component_name"] for c in components]
+    assert names == ["Tube Screamer", "Solid EQ", "Matched Cabinet Pro"]
+
+
+def test_llm_emitted_cabinet_stripped_before_insertion() -> None:
+    """Any cabinet the LLM emitted is removed; only the enforced one remains."""
+    components = [
+        {"component_name": "Tube Screamer", "component_id": 73000, "parameters": {}},
+        {"component_name": "Lead 800", "component_id": 57000, "parameters": {}},
+        {"component_name": "Matched Cabinet Pro", "component_id": 156000, "parameters": {}},
+        {"component_name": "Solid EQ", "component_id": 121000, "parameters": {}},
+    ]
+    base_exemplar = "test"
+    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
+    cabinet = _make_matched_cabinet_pro(
+        amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
+    )
+    amp_idx = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    if amp_idx is not None:
+        components.insert(amp_idx + 1, cabinet)
+    else:
+        components.append(cabinet)
+
+    names = [c["component_name"] for c in components]
+    assert names == ["Tube Screamer", "Lead 800", "Matched Cabinet Pro", "Solid EQ"]
+    # Only one cabinet total
+    assert sum(1 for c in components if "cabinet" in c["component_name"].lower()) == 1
+
+
+def test_cabinet_ordering_with_multiple_post_effects() -> None:
+    """Multiple post-cabinet effects preserve their relative order."""
+    components = [
+        {"component_name": "Tube Screamer", "component_id": 73000, "parameters": {}},
+        {"component_name": "Lead 800", "component_id": 57000, "parameters": {}},
+        {"component_name": "Twin Delay", "component_id": 98000, "parameters": {}},
+        {"component_name": "Studio Reverb", "component_id": 33000, "parameters": {}},
+        {"component_name": "Solid Buscomp", "component_id": 122000, "parameters": {}},
+    ]
+    base_exemplar = "test"
+    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
+    cabinet = _make_matched_cabinet_pro(
+        amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
+    )
+    amp_idx = _find_amp_index(components, _AMP_CABINET_LOOKUP)
+    if amp_idx is not None:
+        components.insert(amp_idx + 1, cabinet)
+    else:
+        components.append(cabinet)
+
+    names = [c["component_name"] for c in components]
+    assert names == [
+        "Tube Screamer",
+        "Lead 800",
+        "Matched Cabinet Pro",
+        "Twin Delay",
+        "Studio Reverb",
+        "Solid Buscomp",
+    ]
