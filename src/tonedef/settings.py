@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +44,9 @@ class Settings(BaseSettings):
 
     # Set a fixed random seed for reproducibility
     random_seed: int = Field(default=42)
+
+    # --- Secrets ---
+    anthropic_api_key: SecretStr = Field(default=SecretStr(""))
 
     # --- LLM temperature ---
     # Phase 1 (sonic analysis): moderate for creative flexibility
