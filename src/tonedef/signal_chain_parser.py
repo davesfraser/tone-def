@@ -230,3 +230,48 @@ def _extract_equipment_section(block: str, result: ParsedSignalChain) -> None:
 
     if section.units:
         result.sections.append(section)
+
+
+# ---------------------------------------------------------------------------
+# Compact tonal target for Phase 2 prompt injection
+# ---------------------------------------------------------------------------
+
+
+def format_tonal_target(parsed: ParsedSignalChain) -> str:
+    """Render a parsed signal chain as a compact tonal target for Phase 2.
+
+    Produces a minimal string containing only the information the Phase 2
+    LLM needs for component mapping: chain type, unit names with types and
+    GR equivalents, parameter name/value pairs, and tags.
+
+    Strips all decorative formatting (arrows, separators, provenance labels,
+    parameter explanations, prose sections, confidence).
+
+    Args:
+        parsed: A fully parsed Phase 1 output.
+
+    Returns:
+        Compact multi-line string suitable for ``{{SIGNAL_CHAIN}}`` injection.
+    """
+    lines: list[str] = []
+
+    lines.append(f"Chain type: {parsed.chain_type}")
+
+    for section in parsed.sections:
+        lines.append("")
+        lines.append(section.title.upper())
+        for unit in section.units:
+            gr = f" → (Guitar Rig: {unit.gr_equivalent})" if unit.gr_equivalent else ""
+            lines.append(f"  [{unit.name} — {unit.unit_type}]{gr}")
+            for param in unit.parameters:
+                lines.append(f"    {param.name}: {param.value}")
+
+    if parsed.tags_characters or parsed.tags_genres:
+        lines.append("")
+        lines.append("TAGS")
+        if parsed.tags_characters:
+            lines.append(f"Characters: {', '.join(parsed.tags_characters)}")
+        if parsed.tags_genres:
+            lines.append(f"Genres: {', '.join(parsed.tags_genres)}")
+
+    return "\n".join(lines)

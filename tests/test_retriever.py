@@ -265,3 +265,26 @@ class TestSearchExemplars:
         r1 = search_exemplars(PHASE1_OUTPUT, n_results=5)
         r2 = search_exemplars(PHASE1_OUTPUT, n_results=5)
         assert [r["preset_name"] for r in r1] == [r["preset_name"] for r in r2]
+
+    def test_pre_extracted_matches_raw_parsing(self) -> None:
+        """Passing pre-extracted tags/components produces the same results as raw text."""
+        tags = parse_signal_chain_tags(PHASE1_OUTPUT)
+        components = parse_signal_chain_components(PHASE1_OUTPUT)
+        r_raw = search_exemplars(PHASE1_OUTPUT, n_results=5)
+        r_pre = search_exemplars(PHASE1_OUTPUT, n_results=5, tags=tags, components=components)
+        assert [r["preset_name"] for r in r_raw] == [r["preset_name"] for r in r_pre]
+        assert [r["distance"] for r in r_raw] == [r["distance"] for r in r_pre]
+
+    def test_pre_extracted_tags_only(self) -> None:
+        """Passing only tags still works; components fall back to regex parsing."""
+        tags = parse_signal_chain_tags(PHASE1_OUTPUT)
+        r_raw = search_exemplars(PHASE1_OUTPUT, n_results=3)
+        r_pre = search_exemplars(PHASE1_OUTPUT, n_results=3, tags=tags)
+        assert [r["preset_name"] for r in r_raw] == [r["preset_name"] for r in r_pre]
+
+    def test_pre_extracted_components_only(self) -> None:
+        """Passing only components still works; tags fall back to regex parsing."""
+        components = parse_signal_chain_components(PHASE1_OUTPUT)
+        r_raw = search_exemplars(PHASE1_OUTPUT, n_results=3)
+        r_pre = search_exemplars(PHASE1_OUTPUT, n_results=3, components=components)
+        assert [r["preset_name"] for r in r_raw] == [r["preset_name"] for r in r_pre]

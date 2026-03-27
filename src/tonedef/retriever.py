@@ -203,7 +203,13 @@ def score_exemplar(
     return tw * tag_score + cw * comp_score
 
 
-def search_exemplars(query: str, n_results: int = 5) -> list[dict]:
+def search_exemplars(
+    query: str,
+    n_results: int = 5,
+    *,
+    tags: list[str] | None = None,
+    components: list[str] | None = None,
+) -> list[dict]:
     """Retrieve exemplar preset records most similar to a Phase 1 signal chain.
 
     Uses structured matching — tag overlap and component name overlap —
@@ -213,9 +219,18 @@ def search_exemplars(query: str, n_results: int = 5) -> list[dict]:
     Ties are broken by seeded random shuffle for reproducibility without
     arbitrary alphabetical bias.
 
+    When *tags* and *components* are provided (e.g. extracted from a
+    ``ParsedSignalChain``), the function skips internal regex parsing of
+    *query* and uses the pre-extracted values directly.
+
     Args:
         query: Phase 1 signal chain text (contains TAGS and unit names).
+            Used only when *tags* or *components* are not provided.
         n_results: Number of exemplar records to return.
+        tags: Pre-extracted tag strings (Characters + Genres).  When
+            provided, ``parse_signal_chain_tags`` is skipped.
+        components: Pre-extracted unit name strings.  When provided,
+            ``parse_signal_chain_components`` is skipped.
 
     Returns:
         List of exemplar record dicts, each with:
@@ -225,8 +240,10 @@ def search_exemplars(query: str, n_results: int = 5) -> list[dict]:
             distance:    float  (1.0 - score, for backward compatibility)
     """
     store = _get_exemplars_store()
-    query_tags = parse_signal_chain_tags(query)
-    query_components = parse_signal_chain_components(query)
+    query_tags = tags if tags is not None else parse_signal_chain_tags(query)
+    query_components = (
+        components if components is not None else parse_signal_chain_components(query)
+    )
 
     scored: list[tuple[float, str, dict]] = []
     for name, record in store.items():

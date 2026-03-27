@@ -319,7 +319,11 @@ elif st.session_state.page == "analysis":
     if st.session_state.building:
         with st.spinner("Mapping to Guitar Rig 7 components..."):
             client = get_client()
-            components = map_components(st.session_state.signal_chain_raw, client)
+            components = map_components(
+                st.session_state.signal_chain_raw,
+                st.session_state.signal_chain_parsed,
+                client,
+            )
             st.session_state.components = components
             st.session_state.building = False
             st.session_state.page = "build"

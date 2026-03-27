@@ -31,6 +31,7 @@ from tonedef.retriever import (
     search_manual_for_categories,
 )
 from tonedef.settings import settings
+from tonedef.signal_chain_parser import ParsedSignalChain, format_tonal_target
 
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _AMP_CABINET_LOOKUP_PATH = DATA_PROCESSED / "amp_cabinet_lookup.json"
@@ -301,6 +302,7 @@ def fill_defaults(components: list[dict], schema: dict) -> list[dict]:
 
 def map_components(
     signal_chain: str,
+    parsed: ParsedSignalChain,
     client: anthropic.Anthropic,
     model: str = "claude-sonnet-4-6",
 ) -> list[dict]:
@@ -312,11 +314,15 @@ def map_components(
       2. Gather manual descriptions for exemplar components
       3. Retrieve manual descriptions for effect categories the exemplars lack
       4. Build prompt with exemplars, manual reference, schema, cabinet lookup
-      5. Call the LLM with EXEMPLAR_REFINEMENT_PROMPT
+      5. Call the LLM with EXEMPLAR_REFINEMENT_PROMPT (compact tonal target)
       6. Parse JSON response, fill defaults, enforce cabinet
 
     Args:
-        signal_chain: The Phase 1 signal chain text.
+        signal_chain: The raw Phase 1 signal chain text (used for ChromaDB
+            manual retrieval where the verbose text aids embedding similarity).
+        parsed: The structured Phase 1 output.  Tags and component names are
+            extracted directly for exemplar scoring, and a compact tonal
+            target is rendered for the Phase 2 prompt.
         client: An initialised anthropic.Anthropic client.
         model: Anthropic model identifier.
 
@@ -331,8 +337,12 @@ def map_components(
     schema = load_schema()
     amp_cabinet_lookup = load_amp_cabinet_lookup()
 
-    # 1. Retrieve exemplars
-    exemplars = search_exemplars(signal_chain)
+    # Pre-extract tags and component names from the already-parsed output
+    pre_tags = parsed.tags_characters + parsed.tags_genres
+    pre_components = [unit.name for section in parsed.sections for unit in section.units]
+
+    # 1. Retrieve exemplars (structured scoring, no re-parsing needed)
+    exemplars = search_exemplars(signal_chain, tags=pre_tags, components=pre_components)
     exemplar_context = format_exemplar_context(exemplars)
 
     # 2. Gather component names across all exemplars
@@ -359,13 +369,14 @@ def map_components(
         | {_MATCHED_CABINET_PRO_NAME}
     )
 
-    # 7. Build prompt
+    # 7. Build prompt — inject compact tonal target instead of raw text
+    tonal_target = format_tonal_target(parsed)
     manual_context = build_manual_reference_context(all_manual)
     schema_context = build_component_schema_context(all_component_names, schema)
     cabinet_context = build_cabinet_lookup_context(amp_cabinet_lookup)
 
     prompt = (
-        EXEMPLAR_REFINEMENT_PROMPT.replace("{{SIGNAL_CHAIN}}", signal_chain)
+        EXEMPLAR_REFINEMENT_PROMPT.replace("{{SIGNAL_CHAIN}}", tonal_target)
         .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
         .replace("{{MANUAL_REFERENCE}}", manual_context)
         .replace("{{COMPONENT_SCHEMA}}", schema_context)

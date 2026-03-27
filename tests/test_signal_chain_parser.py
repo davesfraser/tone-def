@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from tonedef.signal_chain_parser import ParsedSignalChain, parse_signal_chain
+from tonedef.signal_chain_parser import (
+    ParsedSignalChain,
+    format_tonal_target,
+    parse_signal_chain,
+)
 
 # ---------------------------------------------------------------------------
 # Fixtures — representative Phase 1 outputs
@@ -270,3 +274,98 @@ class TestEdgeCases:
         assert unit.parameters[0].name == "Volume"
         assert unit.parameters[0].explanation == ""
         assert unit.parameters[1].explanation == "High gain"
+
+
+# ---------------------------------------------------------------------------
+# format_tonal_target
+# ---------------------------------------------------------------------------
+
+
+class TestFormatTonalTargetFullProduction:
+    @pytest.fixture()
+    def output(self) -> str:
+        return format_tonal_target(parse_signal_chain(FULL_PRODUCTION_EXAMPLE))
+
+    def test_contains_chain_type(self, output: str) -> None:
+        assert "Chain type: FULL_PRODUCTION" in output
+
+    def test_contains_unit_names(self, output: str) -> None:
+        assert "Electro-Harmonix Memory Man" in output
+        assert "Vox AC30" in output
+        assert "Neve 1073" in output
+        assert "SSL G-series bus compressor" in output
+
+    def test_contains_gr_equivalents(self, output: str) -> None:
+        assert "Guitar Rig: AC Box" in output
+
+    def test_contains_param_values(self, output: str) -> None:
+        assert "Delay time:" in output
+        assert "490ms" in output
+        assert "Treble: 2 o'clock" in output
+
+    def test_contains_tags(self, output: str) -> None:
+        assert "Characters: Clean, Spacious" in output
+        assert "Genres: Rock, Alternative" in output
+
+    def test_contains_section_headers(self, output: str) -> None:
+        assert "GUITAR SIGNAL CHAIN" in output
+        assert "CABINET AND MIC" in output
+        assert "RECORDING CHAIN" in output
+        assert "STUDIO PROCESSING" in output
+
+    def test_excludes_provenance(self, output: str) -> None:
+        assert "DOCUMENTED" not in output
+        assert "INFERRED" not in output
+        assert "ESTIMATED" not in output
+
+    def test_excludes_explanations(self, output: str) -> None:
+        assert "└─" not in output
+        assert "rhythmic pattern" not in output
+
+    def test_excludes_arrows(self, output: str) -> None:
+        assert "↓" not in output
+
+    def test_excludes_separators(self, output: str) -> None:
+        assert "━" not in output
+
+    def test_excludes_prose(self, output: str) -> None:
+        assert "WHY THIS CHAIN WORKS" not in output
+        assert "PLAYING NOTES" not in output
+        assert "CONFIDENCE" not in output
+
+
+class TestFormatTonalTargetAmpOnly:
+    @pytest.fixture()
+    def output(self) -> str:
+        return format_tonal_target(parse_signal_chain(AMP_ONLY_EXAMPLE))
+
+    def test_contains_chain_type(self, output: str) -> None:
+        assert "Chain type: AMP_ONLY" in output
+
+    def test_contains_unit_names(self, output: str) -> None:
+        assert "Tube Screamer" in output
+        assert "Marshall JCM800" in output
+
+    def test_contains_gr_equivalent(self, output: str) -> None:
+        assert "Guitar Rig: Lead 800" in output
+
+    def test_contains_tags(self, output: str) -> None:
+        assert "Distorted" in output
+        assert "Rock" in output
+        assert "Metal" in output
+
+    def test_excludes_provenance(self, output: str) -> None:
+        assert "DOCUMENTED" not in output
+        assert "INFERRED" not in output
+
+    def test_excludes_explanations(self, output: str) -> None:
+        assert "└─" not in output
+        assert "Pushes the amp" not in output
+
+
+class TestFormatTonalTargetEmpty:
+    def test_empty_parsed_chain(self) -> None:
+        parsed = parse_signal_chain("")
+        output = format_tonal_target(parsed)
+        assert "Chain type:" in output
+        assert "TAGS" not in output
