@@ -18,11 +18,14 @@ Exemplar-first architecture:
 from __future__ import annotations
 
 import json
+import logging
 import re
 
 import anthropic
+from pydantic import ValidationError
 
 from tonedef.exemplar_store import format_exemplar_context
+from tonedef.models import ComponentOutput
 from tonedef.paths import DATA_PROCESSED
 from tonedef.prompts import EXEMPLAR_REFINEMENT_PROMPT
 from tonedef.retriever import (
@@ -408,12 +411,29 @@ def map_components(
         raw = raw[arr_start.start() : _arr_end.end()]
 
     try:
-        components: list[dict] = json.loads(raw)
+        raw_list: list[dict] = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ValueError(f"Phase 2 LLM returned non-JSON response: {exc}\n\n{raw}") from exc
 
-    if not isinstance(components, list):
-        raise ValueError(f"Phase 2 LLM returned non-array JSON: {type(components)}")
+    if not isinstance(raw_list, list):
+        raise ValueError(f"Phase 2 LLM returned non-array JSON: {type(raw_list)}")
+
+    # Validate each component through Pydantic — catches bad enums,
+    # missing fields, and coerces list-form parameters to dicts.
+    _log = logging.getLogger(__name__)
+    validated: list[ComponentOutput] = []
+    for i, item in enumerate(raw_list):
+        try:
+            validated.append(ComponentOutput.model_validate(item))
+        except ValidationError as exc:
+            _log.warning("Phase 2 component %d failed validation: %s", i, exc)
+            # Fall through — keep the raw dict so downstream still works
+
+    # Use validated dicts where possible, fall back to raw dicts for
+    # components that failed Pydantic validation.
+    components: list[dict] = (
+        [v.model_dump() for v in validated] if len(validated) == len(raw_list) else raw_list
+    )
 
     # 9a. Extract LLM cabinet params BEFORE fill_defaults so we can
     # distinguish explicit LLM choices from schema-default backfills.

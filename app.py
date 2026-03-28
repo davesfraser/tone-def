@@ -3,18 +3,26 @@
 
 from __future__ import annotations
 
+import contextlib
 import tempfile
 from pathlib import Path
 
 import anthropic
 import streamlit as st
 
-from tonedef.component_mapper import load_schema, map_components
+from tonedef.component_mapper import load_amp_cabinet_lookup, load_schema, map_components
+from tonedef.models import ComponentOutput
 from tonedef.ngrr_builder import transplant_preset
 from tonedef.paths import DATA_EXTERNAL
 from tonedef.pipeline import generate_signal_chain
 from tonedef.settings import settings
 from tonedef.signal_chain_parser import ParsedSignalChain, parse_signal_chain
+from tonedef.validation import (
+    validate_phase1,
+    validate_phase2,
+    validate_pre_build,
+    validate_signal_chain_order,
+)
 from tonedef.xml_builder import build_signal_chain_xml
 
 # ---------------------------------------------------------------------------
@@ -32,6 +40,7 @@ _DEFAULTS: dict[str, object] = {
     "query": "",
     "signal_chain_raw": None,
     "signal_chain_parsed": None,
+    "phase1_validation": None,
     "components": None,
     "preset_bytes": None,
     "preset_name": "ToneDef Preset",
@@ -92,6 +101,7 @@ def _clear_results() -> None:
     """Reset all generated state."""
     st.session_state.signal_chain_raw = None
     st.session_state.signal_chain_parsed = None
+    st.session_state.phase1_validation = None
     st.session_state.components = None
     st.session_state.preset_bytes = None
     st.session_state.preset_name = "ToneDef Preset"
@@ -241,7 +251,9 @@ if st.session_state.page == "describe":
             client = get_client()
             raw = generate_signal_chain(st.session_state.query, client)
             st.session_state.signal_chain_raw = raw
-            st.session_state.signal_chain_parsed = parse_signal_chain(raw)
+            parsed = parse_signal_chain(raw)
+            st.session_state.signal_chain_parsed = parsed
+            st.session_state.phase1_validation = validate_phase1(parsed)
             st.session_state.analysing = False
             st.session_state.page = "analysis"
             st.rerun()
@@ -310,9 +322,23 @@ elif st.session_state.page == "analysis":
     with st.expander("Raw signal chain output"):
         st.code(st.session_state.signal_chain_raw, language=None)
 
+    # Phase 1 validation
+    p1v = st.session_state.phase1_validation
+    if p1v is not None:
+        for e in p1v.errors:
+            st.error(e, icon="✗")
+        for w in p1v.warnings:
+            st.warning(w, icon="⚠️")
+
     st.markdown("")  # spacer
 
-    if st.button("🔧  Build Preset", type="primary", use_container_width=True):
+    build_blocked = p1v is not None and not p1v.is_valid
+    if st.button(
+        "🔧  Build Preset",
+        type="primary",
+        use_container_width=True,
+        disabled=build_blocked,
+    ):
         st.session_state.building = True
         st.rerun()
 
@@ -336,6 +362,24 @@ elif st.session_state.page == "analysis":
 elif st.session_state.page == "build":
     st.header("Preset Build")
     st.markdown("Your signal chain mapped to Guitar Rig 7 components.")
+
+    # Phase 2 validation
+    _build_comps = st.session_state.components
+    if _build_comps:
+        _validated = []
+        for _c in _build_comps:
+            with contextlib.suppress(Exception):
+                _validated.append(ComponentOutput.model_validate(_c))
+        if _validated:
+            _schema = load_schema()
+            _p2v = validate_phase2(_validated, _schema)
+            _order_v = validate_signal_chain_order(_validated, load_amp_cabinet_lookup())
+            _pre_v = validate_pre_build(_validated)
+            _all_v = _p2v.merge(_order_v).merge(_pre_v)
+            for _e in _all_v.errors:
+                st.error(_e, icon="✗")
+            for _w in _all_v.warnings:
+                st.warning(_w, icon="⚠️")
 
     for comp in st.session_state.components:
         mod = comp.get("modification", "—")
