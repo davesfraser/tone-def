@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import html as html_mod
 import tempfile
 from pathlib import Path
 
@@ -47,6 +48,7 @@ _DEFAULTS: dict[str, object] = {
     "preset_bytes": None,
     "preset_name": "ToneDef Preset",
     "processing": False,
+    "_last_built_name": None,
 }
 
 for _key, _val in _DEFAULTS.items():
@@ -300,13 +302,13 @@ def _auto_preset_name(query: str) -> str:
 
 def _render_component_card(comp: dict, schema: dict | None = None) -> None:
     """Render a single component as a styled card with human-readable params."""
-    name = comp.get("component_name", "")
-    mod = comp.get("modification", "—")
-    conf = comp.get("confidence", "")
-    rationale = comp.get("rationale", "")
-    description = comp.get("description", "")
+    name = html_mod.escape(comp.get("component_name", ""))
+    mod = html_mod.escape(comp.get("modification", "—"))
+    conf = html_mod.escape(comp.get("confidence", ""))
+    rationale = html_mod.escape(comp.get("rationale", ""))
+    description = html_mod.escape(comp.get("description", ""))
     params = comp.get("parameters", {})
-    base = comp.get("base_exemplar", "")
+    base = html_mod.escape(comp.get("base_exemplar", ""))
 
     mod_colour = _MODIFICATION_COLOURS.get(mod, "#666")
     conf_dot = _CONFIDENCE_DOT.get(conf, "⚪")
@@ -324,7 +326,7 @@ def _render_component_card(comp: dict, schema: dict | None = None) -> None:
     for k, v in params.items():
         if k == "Pwr":
             continue
-        display_name = param_names.get(k, k)
+        display_name = html_mod.escape(param_names.get(k, k))
         # Format value: int enums as-is, 0.0→Off, 1.0→Full for switches, else 0-10 scale
         if any(k.startswith(p) for p in _INT_ENUM_PREFIXES):
             display_val = str(int(v)) if isinstance(v, float) and v == int(v) else str(v)
@@ -341,7 +343,7 @@ def _render_component_card(comp: dict, schema: dict | None = None) -> None:
         else:
             display_val = str(v)
         param_pairs.append(
-            f'<span class="pk">{display_name}</span>: <span class="pv">{display_val}</span>'
+            f'<span class="pk">{display_name}</span>: <span class="pv">{html_mod.escape(display_val)}</span>'
         )
     params_html = " &nbsp;·&nbsp; ".join(param_pairs) if param_pairs else ""
 
@@ -374,9 +376,9 @@ def _render_similar_presets(exemplars: list[dict] | None) -> None:
         return
     with st.expander("🔎 Similar Guitar Rig presets analysed"):
         for ex in exemplars:
-            preset_name = ex.get("preset_name", ex.get("name", "Unknown"))
+            preset_name = html_mod.escape(ex.get("preset_name", ex.get("name", "Unknown")))
             tags = ex.get("tags", [])
-            tag_str = ", ".join(tags) if tags else "no tags"
+            tag_str = ", ".join(html_mod.escape(t) for t in tags) if tags else "no tags"
             comp_count = len(ex.get("components", []))
             st.markdown(f"**{preset_name}** — {tag_str} · {comp_count} components")
 
@@ -386,23 +388,26 @@ def _render_tone_overview(parsed: ParsedSignalChain) -> None:
     ct_label = _CHAIN_TYPE_LABELS.get(parsed.chain_type, parsed.chain_type.replace("_", " "))
 
     # Tag bar with styled pills
-    tag_pills = [f'<span class="tag-pill chain-type">{ct_label}</span>']
+    tag_pills = [f'<span class="tag-pill chain-type">{html_mod.escape(ct_label)}</span>']
     if parsed.tags_genres:
         tag_pills.append('<span class="tag-label">Genre</span>')
-        tag_pills.extend(f'<span class="tag-pill genre">{t}</span>' for t in parsed.tags_genres)
+        tag_pills.extend(
+            f'<span class="tag-pill genre">{html_mod.escape(t)}</span>' for t in parsed.tags_genres
+        )
     if parsed.tags_characters:
         tag_pills.append('<span class="tag-label">Character</span>')
         tag_pills.extend(
-            f'<span class="tag-pill character">{t}</span>' for t in parsed.tags_characters
+            f'<span class="tag-pill character">{html_mod.escape(t)}</span>'
+            for t in parsed.tags_characters
         )
     st.markdown(f'<div class="tag-bar">{" ".join(tag_pills)}</div>', unsafe_allow_html=True)
 
     # About Your Tone — full-width narrative card
     about_parts: list[str] = []
     if parsed.chain_type_reason:
-        about_parts.append(parsed.chain_type_reason.rstrip(".") + ".")
+        about_parts.append(html_mod.escape(parsed.chain_type_reason.rstrip(".")) + ".")
     if parsed.why_it_works:
-        about_parts.append(parsed.why_it_works)
+        about_parts.append(html_mod.escape(parsed.why_it_works))
     if about_parts:
         about_text = " ".join(about_parts)
         st.markdown(
@@ -416,7 +421,7 @@ def _render_guitar_tips(parsed: ParsedSignalChain) -> None:
     if parsed.playing_notes:
         st.markdown(
             f'<div class="tone-card"><h4>🎸 Guitar & Playing Tips</h4>'
-            f"<p>{parsed.playing_notes}</p></div>",
+            f"<p>{html_mod.escape(parsed.playing_notes)}</p></div>",
             unsafe_allow_html=True,
         )
 
@@ -443,9 +448,13 @@ if _has_results:
     parsed: ParsedSignalChain = st.session_state.signal_chain_parsed
 
     # Query summary bar
-    query_text = st.session_state.query
+    query_text = html_mod.escape(st.session_state.query)
     modifiers = get_all_selected_terms(st.session_state.selected_modifiers)
-    mods_html = "".join(f'<span class="qs-mod">{m}</span>' for m in modifiers) if modifiers else ""
+    mods_html = (
+        "".join(f'<span class="qs-mod">{html_mod.escape(m)}</span>' for m in modifiers)
+        if modifiers
+        else ""
+    )
 
     st.markdown(
         f'<div class="query-summary">'

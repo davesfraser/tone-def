@@ -14,7 +14,7 @@ name = "tonedef"
 # this value at runtime. One place to change it = zero drift
 version = "0.1.0"
 
-description = "Web application and prompt interface for guitarists to find ther ultimate tone"
+description = "Web application and prompt interface for guitarists to find the ultimate tone"
 readme = "README.md"
 
 # Minimum supported Python version for the project

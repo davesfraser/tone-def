@@ -90,94 +90,95 @@ Output: structured JSON list of GR7 components with normalised 0.0-1.0 parameter
 
 ## Current Status
 
-### Completed
+### Source modules (`src/tonedef/`)
 
-**ngrr_builder.py** (`src/tonedef/`)
-Reverse-engineered NI Monolith binary format. Proven working — generates valid
-loadable .ngrr preset files. Critical step ordering:
-1. Inject signal chain
-2. Update preset name (changes XML1 size)
-3. Update rb fields (after name change so positions are final)
-4. Update byte 0 file size
-5. Update both LMX fields (after name change so XML1 size is final)
-6. Fresh UUIDs
+| Module | Purpose |
+|--------|---------|
+| `ngrr_builder.py` | Reverse-engineered NI Monolith binary format. Generates valid loadable .ngrr preset files. Critical step ordering: inject signal chain → update preset name → update rb fields → update byte 0 file size → update both LMX fields → fresh UUIDs. |
+| `ngrr_parser.py` | Parses .ngrr files: extract_xml1, extract_xml2, extract_preset_name, parse_non_fix_components, merge_into_catalogue, finalise_catalogue, merge_tags_into_catalogue, finalise_tag_catalogue, parse_preset_metadata. |
+| `xml_builder.py` | Assembles valid `<non-fix-components>` XML from component JSON. Clamps parameter values to schema-defined min/max ranges, falls back to param midpoint when no value provided. |
+| `component_mapper.py` | Phase 2 orchestrator: search exemplars → gather manual context → build prompt → LLM call → validate → enforce cabinet. Also loads schema and amp_cabinet_lookup. |
+| `exemplar_store.py` | Factory preset exemplar dataset for few-shot grounding: build_exemplar_records, _invert_tag_catalogue, format_exemplar_context. |
+| `retriever.py` | ChromaDB retrieval layer: search_exemplars (tonal query → similar presets), get_manual_chunks_for_components (exact-match docs), search_manual_for_categories (category-stratified search). |
+| `prompts.py` | Two system prompts: SYSTEM_PROMPT (Phase 1 — tone query → signal chain) and EXEMPLAR_REFINEMENT_PROMPT (Phase 2 — exemplar-first preset builder). |
+| `models.py` | Pydantic models: ParsedSignalChain, ComponentOutput, PresetMetadata. |
+| `pipeline.py` | End-to-end orchestration: query → Phase 1 → Phase 2 → XML → .ngrr. |
+| `signal_chain_parser.py` | Parses the Phase 1 LLM text output into structured ParsedSignalChain (chain type, tags, components, playing notes, etc.). |
+| `validation.py` | Pure validation functions for Phase 1/2 output — tag checks, component counts, cabinet enforcement, order validation. User-facing plain-English messages. |
+| `crp_lookup.py` | Control Room Pro cabinet/mic/position enum lookup from crp_enum_lookup.json. 0-indexed enums: 31 cabinets (0–30), 5 mics (0–4), 3 positions (0–2). |
+| `tonal_vocab.py` | Tonal descriptor vocabulary for modifier UI chips. Loads tonal_descriptors.json and provides term selection helpers. |
+| `paths.py` | Centralised filesystem paths — all modules import paths from here. |
+| `settings.py` | Pydantic Settings configuration — API key (SecretStr), model name, temperature, etc. |
 
-Key discovery: two LMX markers exist (one before XML1, one before XML2). Missing
-the XML1 LMX update was the root cause of files failing to import into GR7.
+### Data pipeline scripts (`scripts/`)
 
-**ngrr_parser.py** (`src/tonedef/`)
-Parses .ngrr files: extract_xml1, extract_xml2, extract_preset_name,
-parse_non_fix_components, merge_into_catalogue, finalise_catalogue,
-merge_tags_into_catalogue, finalise_tag_catalogue, parse_preset_metadata
+| Script | Purpose |
+|--------|---------|
+| `build_component_schema.py` | Parses all .ngrr → component_schema.json |
+| `build_tag_catalogue.py` | Parses all .ngrr → tag_catalogue.json |
+| `build_manual_chunks.py` | Extracts component chunks from GR7 manual PDF → gr_manual_chunks.json |
+| `build_retrieval_index.py` | Indexes gr_manual_chunks.json into ChromaDB |
+| `build_exemplar_index.py` | Indexes 1425 factory presets → exemplar_store.json |
+| `build_amp_cabinet_lookup.py` | Scans exemplar store for amp→cabinet Cab values → amp_cabinet_lookup.json |
+| `build_crp_lookup.py` | Builds Control Room Pro enum lookup → crp_enum_lookup.json |
+| `check_pipeline.py` | Quick end-to-end pipeline sanity check |
+| `diagnose_pipeline.py` | Detailed pipeline diagnostic with intermediate outputs |
+| `_analyze_modes.py` | (diagnostic) Analyse component mode distributions |
+| `_audit_ranges.py` | (diagnostic) Audit parameter value ranges across presets |
+| `_check_factory_formats.py` | (diagnostic) Verify factory preset format consistency |
+| `_verify_cab.py` | (diagnostic) Verify cabinet enum assignments |
 
-**xml_builder.py** (`src/tonedef/`)
-Assembles valid `<non-fix-components>` XML from component JSON output.
-Clamps parameter values to schema-defined min/max ranges, falls back to
-param midpoint when no value provided, generates fresh UUIDs per component.
+### Data files (`data/processed/`)
 
-**component_mapper.py** (`src/tonedef/`)
-Runtime phase 2 orchestrator (exemplar-first architecture):
-- `load_schema` / `load_amp_cabinet_lookup` — data loading
-- `build_manual_reference_context` / `build_component_schema_context` / `build_cabinet_lookup_context` — prompt context assembly
-- `fill_defaults` — applies schema defaults, clamps values, preserves Cab integer enum
-- `map_components` — full pipeline: search exemplars → gather manual → build prompt → LLM → validate → enforce cabinet
+| File | Contents |
+|------|----------|
+| `component_schema.json` | 147 unique GR7 components with parameter stats |
+| `tag_catalogue.json` | 111 unique tags (Characters 16, FX Types 70, Genres 14, Input Sources 11) |
+| `gr_manual_chunks.json` | 118 component chunks from GR7 manual |
+| `exemplar_store.json` | 1425 preset exemplar records |
+| `amp_cabinet_lookup.json` | 27 amp → Matched Cabinet Pro Cab value mappings |
+| `crp_enum_lookup.json` | CRP enums: 31 cabinets (0–30), 5 mics (0–4), 3 positions (0–2) |
+| `tonal_descriptors.json` | Tonal modifier vocabulary for UI chips |
+| `chromadb/` | ChromaDB persistent collections (gr_manual, gr_exemplars) |
+| `output_presets/` | Generated .ngrr presets for testing |
 
-**exemplar_store.py** (`src/tonedef/`)
-Preset exemplar dataset for few-shot grounding:
-- `build_exemplar_records` — parses all factory presets → structured records
-- `_invert_tag_catalogue` — tag path → display name lookup
-- `format_exemplar_context` — formats top-N exemplars as {{EXEMPLAR_PRESETS}} block
+### Tests (`tests/`) — 317 tests, all passing
 
-**retriever.py** (`src/tonedef/`)
-ChromaDB retrieval layer:
-- `search_exemplars` — tonal query → similar preset exemplars (stratified by tag root)
-- `get_manual_chunks_for_components` — exact-match manual descriptions for named components
-- `search_manual_for_categories` — category-stratified manual search for missing effects
-- `collection_path` — path to ChromaDB persistent collection
+| File | Coverage |
+|------|----------|
+| `test_smoke.py` | Basic import and API checks |
+| `test_ngrr_parser.py` | Parsing, catalogue merge, metadata, tag filtering |
+| `test_ngrr_builder.py` | Name update, rb fields, UUIDs, transplant integration |
+| `test_exemplar_store.py` | Catalogue inversion, context formatting, build records |
+| `test_xml_builder.py` | XML structure, parameter clamping, UUIDs, multi-component |
+| `test_component_mapper.py` | Context builders, cabinet lookup, fill defaults, Cabinet Pro, CRP enums |
+| `test_signal_chain_parser.py` | Chain type detection, tag extraction, component parsing |
+| `test_validation.py` | All validation rules, user-facing messages, edge cases |
+| `test_models.py` | Pydantic model construction and validation |
+| `test_retriever.py` | Exemplar search, manual chunk lookup, category search |
+| `test_crp_lookup.py` | CRP enum resolution, fallback behaviour |
+| `test_tonal_vocab.py` | Descriptor loading, term selection, category filtering |
+| `test_pipeline.py` | End-to-end pipeline orchestration |
+| `test_prompts.py` | Prompt template integrity, placeholder presence |
 
-**prompts.py** (`src/tonedef/`)
-- SYSTEM_PROMPT — complete with sonic_analysis, chain_type_detection,
-  cabinet_and_mic, knowledge_transparency, fallback_behaviour, tag_inference
-- EXEMPLAR_REFINEMENT_PROMPT — phase 2 exemplar-first preset builder with
-  tonal_target, exemplar_presets, manual_reference, component_schema,
-  cabinet_lookup, parameter_conversion, refinement_rules
+### Streamlit app (`app.py`)
 
-**Data pipeline scripts** (`scripts/`)
-- build_component_schema.py — parses all .ngrr → data/processed/component_schema.json
-- build_tag_catalogue.py — parses all .ngrr → data/processed/tag_catalogue.json
-- build_manual_chunks.py — extracts component chunks from GR7 manual PDF →
-  data/processed/gr_manual_chunks.json
-- build_retrieval_index.py — indexes gr_manual_chunks.json into ChromaDB
-- build_exemplar_index.py — indexes 1425 factory presets → exemplar_store.json
-- build_amp_cabinet_lookup.py — scans exemplar store for amp→cabinet Cab values →
-  data/processed/amp_cabinet_lookup.json
+Single-page progressive flow: tone description → tonal modifiers → Phase 1 (signal chain) →
+Phase 2 (component mapping) → XML → .ngrr binary → download. Features: stepper bar, styled
+component cards with rationale and human-readable params, tone overview with tag pills,
+guitar tips, similar presets section, custom dark theme CSS. HTML-escaped user and LLM content.
 
-**Data files produced**
-- data/processed/component_schema.json — 147 unique GR7 components with parameter stats
-- data/processed/tag_catalogue.json — 111 unique tags (Characters 16, FX Types 70,
-  Genres 14, Input Sources 11)
-- data/processed/gr_manual_chunks.json — 118 component chunks from GR7 manual
-- data/processed/exemplar_store.json — 1425 preset exemplar records
-- data/processed/amp_cabinet_lookup.json — 27 amp → Matched Cabinet Pro Cab value mappings
-- data/processed/chromadb/ — ChromaDB persistent collections (gr_manual, gr_exemplars)
+### Notebooks (`notebooks/marimo/`)
 
-**Tests** (`tests/`) — 101 tests, all passing
-- test_smoke.py — basic import and API checks
-- test_ngrr_parser.py — 22 tests (parsing, catalogue merge, metadata, tag filtering)
-- test_ngrr_builder.py — 10 tests (name update, rb fields, UUIDs, transplant integration)
-- test_exemplar_store.py — 13 tests (catalogue inversion, context formatting, build records)
-- test_xml_builder.py — 18 tests (XML structure, parameter clamping, UUIDs, multi-component)
-- test_component_mapper.py — 31 tests (context builders, cabinet lookup, fill defaults, cabinet Pro)
-
-**Streamlit app** (`app.py`)
-Fully wired end-to-end: phase 1 → map_components() → xml_builder → transplant_preset →
-download link. Uses exemplar grounding and ChromaDB retrieval in phase 2.
-
-**Notebooks** (`notebooks/marimo/`)
-- 02_ngrr_preset_builder.py — demonstrates preset transplant pipeline
-- 03_component_schema_parser.py — demonstrates component parsing
-- 05_tag_catalogue_builder.py — demonstrates tag parsing
-- 08_exemplar_store.py — demonstrates exemplar store and context formatting
+| File | Purpose |
+|------|---------|
+| `01_ngrr_preset_builder.py` | Binary preset transplant pipeline |
+| `02_component_schema_parser.py` | Component parsing and schema exploration |
+| `03_tag_catalogue_builder.py` | Tag parsing and catalogue structure |
+| `04_phase1_evaluation.py` | Phase 1 signal chain validation |
+| `05_retrieval_evaluation.py` | Exemplar retrieval quality assessment |
+| `06_phase2_evaluation.py` | Component mapping validation |
+| `07_end_to_end.py` | Full pipeline execution and output review |
 
 ### Pending
 
@@ -196,6 +197,7 @@ download link. Uses exemplar grounding and ChromaDB retrieval in phase 2.
 - Cabinet and mic recommendation mandatory for ALL chain types
 - Phase 2 uses exemplar-first architecture — LLM adjusts factory presets rather than building from scratch
 - Cabinet assignment is deterministic via amp_cabinet_lookup.json (Cab is integer enum, not normalised float)
+- CRP cabinet enums are 0-indexed (0–30): 0=DI Box, 1=Nothing (bypass), 2–28=named cabs, 29=Rammfire A, 30=Rammfire B
 - Google Sheet equivalencies source dropped — LLM-generated, unreliable
 - Ali Jamieson page used only for unambiguous 1:1 mappings (no hedging language)
 - GR7 manual is primary source for component identification via manual chunks

@@ -54,6 +54,35 @@ def extract_preset_name(path: str | Path) -> str:
     return Path(path).stem
 
 
+def _extract_xml_block(data: bytes, *, nth_xml_decl: int, end_tag: bytes) -> str | None:
+    """Extract the *nth* XML block ending with *end_tag* from binary data.
+
+    Parameters
+    ----------
+    data:
+        Raw .ngrr file bytes.
+    nth_xml_decl:
+        Which ``<?xml`` declaration to match (1-indexed).
+    end_tag:
+        Closing tag bytes (e.g. ``b"</gr-instrument-chunk>"``).
+
+    Returns
+    -------
+    str | None
+        The XML block as a UTF-8 string, or ``None`` if not found.
+    """
+    pos = -1
+    for _ in range(nth_xml_decl):
+        pos = data.find(b"<?xml", pos + 1)
+        if pos == -1:
+            return None
+    end = data.find(end_tag, pos)
+    if end == -1:
+        return None
+    end += len(end_tag)
+    return data[pos:end].decode("utf-8", errors="replace")
+
+
 def extract_xml2(path: str | Path) -> str | None:
     """
     Extract the gr-instrument-chunk XML block from an .ngrr binary file.
@@ -67,13 +96,7 @@ def extract_xml2(path: str | Path) -> str | None:
     with open(path, "rb") as f:
         data = f.read()
 
-    xml2_start = data.find(b"<?xml", data.find(b"<?xml") + 1)
-    xml2_end = data.find(b"</gr-instrument-chunk>") + len(b"</gr-instrument-chunk>")
-
-    if xml2_start == -1 or xml2_end == -1:
-        return None
-
-    return data[xml2_start:xml2_end].decode("utf-8", errors="replace")
+    return _extract_xml_block(data, nth_xml_decl=2, end_tag=b"</gr-instrument-chunk>")
 
 
 def parse_non_fix_components(xml2: str) -> list[dict]:
@@ -307,13 +330,7 @@ def extract_xml1(path: str | Path) -> str | None:
     with open(path, "rb") as f:
         data = f.read()
 
-    xml1_start = data.find(b"<?xml")
-    xml1_end = data.find(b"</guitarrig7-database-info>") + len(b"</guitarrig7-database-info>")
-
-    if xml1_start == -1 or xml1_end == -1:
-        return None
-
-    return data[xml1_start:xml1_end].decode("utf-8", errors="replace")
+    return _extract_xml_block(data, nth_xml_decl=1, end_tag=b"</guitarrig7-database-info>")
 
 
 # Tag categories to include - Amplifiers excluded as redundant with component mapping
