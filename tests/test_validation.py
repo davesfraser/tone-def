@@ -184,7 +184,7 @@ class TestValidatePhase1:
         parsed = _make_parsed(chain_type="")
         result = validate_phase1(parsed)
         assert not result.is_valid
-        assert any("chain_type is empty" in e for e in result.errors)
+        assert any("signal chain type" in e for e in result.errors)
 
     def test_invalid_chain_type_error(self) -> None:
         parsed = _make_parsed(chain_type="WEIRD")
@@ -196,13 +196,13 @@ class TestValidatePhase1:
         parsed = _make_parsed(sections=[])
         result = validate_phase1(parsed)
         assert not result.is_valid
-        assert any("No sections" in e for e in result.errors)
+        assert any("No signal chain sections" in e for e in result.errors)
 
     def test_empty_units_error(self) -> None:
         parsed = _make_parsed(sections=[Section(title="Signal Chain", units=[])])
         result = validate_phase1(parsed)
         assert not result.is_valid
-        assert any("No units" in e for e in result.errors)
+        assert any("No gear" in e for e in result.errors)
 
     def test_empty_unit_name_error(self) -> None:
         parsed = _make_parsed(
@@ -215,7 +215,7 @@ class TestValidatePhase1:
         )
         result = validate_phase1(parsed)
         assert not result.is_valid
-        assert any("empty name" in e for e in result.errors)
+        assert any("has no name" in e for e in result.errors)
 
     def test_empty_unit_type_error(self) -> None:
         parsed = _make_parsed(
@@ -228,7 +228,7 @@ class TestValidatePhase1:
         )
         result = validate_phase1(parsed)
         assert not result.is_valid
-        assert any("empty unit_type" in e for e in result.errors)
+        assert any("no type specified" in e for e in result.errors)
 
     def test_full_production_missing_cabinet_warns(self) -> None:
         parsed = _make_parsed(
@@ -241,7 +241,7 @@ class TestValidatePhase1:
         )
         result = validate_phase1(parsed)
         assert result.is_valid  # warning, not error
-        assert any("Cabinet And Mic" in w for w in result.warnings)
+        assert any("cabinet and microphone" in w for w in result.warnings)
 
     def test_amp_only_no_cabinet_no_warning(self) -> None:
         parsed = _make_parsed(
@@ -259,7 +259,7 @@ class TestValidatePhase1:
     def test_no_tags_warns(self) -> None:
         parsed = _make_parsed(tags_characters=[], tags_genres=[])
         result = validate_phase1(parsed)
-        assert any("No tags" in w for w in result.warnings)
+        assert any("tags" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -277,17 +277,17 @@ class TestValidateRetrieval:
     def test_empty_exemplars_warns(self) -> None:
         result = validate_retrieval([])
         assert result.is_valid  # warning, not error
-        assert any("No exemplars" in w for w in result.warnings)
+        assert any("No similar factory presets" in w for w in result.warnings)
 
     def test_low_score_warns(self) -> None:
         exemplars = [{"distance": 0.95}]  # score = 0.05
         result = validate_retrieval(exemplars)
-        assert any("below threshold" in w for w in result.warnings)
+        assert any("weak" in w for w in result.warnings)
 
     def test_custom_threshold(self) -> None:
         exemplars = [{"distance": 0.7}]  # score = 0.3
         result = validate_retrieval(exemplars, min_score=0.5)
-        assert any("below threshold" in w for w in result.warnings)
+        assert any("weak" in w for w in result.warnings)
 
     def test_exact_threshold_passes(self) -> None:
         exemplars = [{"distance": 0.8}]  # score = 0.2
@@ -309,7 +309,7 @@ class TestValidatePhase2:
     def test_empty_list_error(self) -> None:
         result = validate_phase2([], _SCHEMA)
         assert not result.is_valid
-        assert any("empty" in e.lower() for e in result.errors)
+        assert any("No components" in e for e in result.errors)
 
     def test_unknown_name_error(self) -> None:
         comp = _make_comp(component_name="Fantasy Amp")
@@ -379,7 +379,7 @@ class TestValidateSignalChainOrder:
             _make_comp(component_name="Tweed Delight", component_id=79000),
         ]
         result = validate_signal_chain_order(comps, _AMP_CAB_LOOKUP)
-        assert any("before amp" in w for w in result.warnings)
+        assert any("before the amplifier" in w for w in result.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -399,7 +399,7 @@ class TestValidatePreBuild:
     def test_empty_list_error(self) -> None:
         result = validate_pre_build([])
         assert not result.is_valid
-        assert any("Empty" in e for e in result.errors)
+        assert any("preset is empty" in e for e in result.errors)
 
     def test_no_cabinet_error(self) -> None:
         comps = [_make_comp(component_name="Tweed Delight", component_id=79000)]

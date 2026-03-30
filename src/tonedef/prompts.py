@@ -97,6 +97,13 @@ without a cabinet is incomplete.
 
 If ambiguous, choose AMP_ONLY and briefly note the assumption.
 Always honour explicit user preference.
+
+The chain_type reason (after the dash) is shown directly to the user as the
+first line of "About Your Tone". Write it as a concise, user-facing
+explanation of the tonal approach — NOT as meta-commentary about the query.
+Bad:  "query references a specific recording"
+Good: "reconstructing the studio signal chain heard on this track"
+Good: "modelling the live rig and playing style"
 </chain_type_detection>
 
 <fallback_behaviour>
@@ -261,7 +268,7 @@ CONFIDENCE: [HIGH / MEDIUM / LOW] — brief explanation of certainty.
 User query: "I want the guitar tone from Where The Streets Have No Name by U2"
 
 <signal_chain>
-Chain type: FULL_PRODUCTION — query references a specific recording
+Chain type: FULL_PRODUCTION — reconstructing the studio signal chain from this iconic recording
 
 GUITAR SIGNAL CHAIN
 
@@ -541,7 +548,7 @@ Return a JSON array. Each element must have exactly these fields:
   "base_exemplar": "name of exemplar preset used as starting point",
   "modification": "unchanged" | "adjusted" | "swapped" | "added",
   "confidence": "documented" | "inferred" | "estimated",
-  "rationale": "1-2 sentences explaining why this component was chosen and how its parameters achieve the requested tone",
+  "rationale": "1-2 sentences explaining why this component was chosen and how its parameters achieve the requested tone. Write for the end user — never reference internal terms like FULL_PRODUCTION, AMP_ONLY, chain types, or pipeline stages.",
   "description": "1 sentence explaining what this component does and how it shapes the tone in plain language",
   "parameters": {
     "<param_id>": <float or int>,
@@ -615,7 +622,7 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "added",
     "confidence": "estimated",
-    "rationale": "FULL_PRODUCTION chain needs studio cab/mic simulation. SM57 on cap captures the aggressive midrange; moderate room amount recreates the live-room feel of the Texas Flood sessions.",
+    "rationale": "Studio cab and mic simulation captures the aggressive midrange heard on the original recording. SM57 on cap with moderate room ambience recreates the live-room feel of the Texas Flood sessions.",
     "description": "Virtual studio room with cabinet, microphone, and room ambience modelling",
     "parameters": {"Pwr": 1.0, "L": 0.0, "v": 0.8, "Cab1": 18, "Mic1": 1, "MPos1": 0, "g1": 0.85, "p1": 0.5, "m1": 0.0, "s1": 0.0, "r1": 0.25, "rm1": 0.0, "g2": 0.5, "g3": 0.5, "g4": 0.5, "g5": 0.5, "g6": 0.5, "g7": 0.5, "g8": 0.5, "p2": 0.5, "p3": 0.5, "p4": 0.5, "p5": 0.5, "p6": 0.5, "p7": 0.5, "p8": 0.5, "a": 0.15, "b": 0.5, "t": 0.5, "st": 1.0}
   },

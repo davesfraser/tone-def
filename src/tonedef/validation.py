@@ -82,35 +82,37 @@ def validate_phase1(parsed: ParsedSignalChain) -> ValidationResult:
 
     # chain_type
     if not parsed.chain_type:
-        result.errors.append("chain_type is empty")
+        result.errors.append("Could not determine the signal chain type")
     elif parsed.chain_type not in _VALID_CHAIN_TYPES:
-        result.errors.append(f"chain_type {parsed.chain_type!r} not in {_VALID_CHAIN_TYPES}")
+        result.errors.append(f"Unrecognised chain type: {parsed.chain_type}")
 
     # sections / units
     if not parsed.sections:
-        result.errors.append("No sections parsed")
+        result.errors.append("No signal chain sections were found in the response")
     else:
         total_units = sum(len(s.units) for s in parsed.sections)
         if total_units == 0:
-            result.errors.append("No units found in any section")
+            result.errors.append("No gear was identified in the signal chain")
 
         for section in parsed.sections:
             for unit in section.units:
                 if not unit.name:
-                    result.errors.append(f"Unit in section {section.title!r} has empty name")
+                    result.errors.append(f"A component in the {section.title} section has no name")
                 if not unit.unit_type:
                     result.errors.append(
-                        f"Unit {unit.name!r} in section {section.title!r} has empty unit_type"
+                        f"{unit.name} in the {section.title} section has no type specified"
                     )
 
     # Warnings
     if parsed.chain_type == "FULL_PRODUCTION":
         cab_titles = {s.title for s in parsed.sections}
         if "Cabinet And Mic" not in cab_titles:
-            result.warnings.append("FULL_PRODUCTION chain missing 'Cabinet And Mic' section")
+            result.warnings.append(
+                "Full production chain is missing a cabinet and microphone section"
+            )
 
     if not parsed.tags_characters and not parsed.tags_genres:
-        result.warnings.append("No tags parsed (characters or genres)")
+        result.warnings.append("No genre or character tags were detected for this tone")
 
     return result
 
@@ -137,13 +139,13 @@ def validate_retrieval(
     result = ValidationResult()
 
     if not exemplars:
-        result.warnings.append("No exemplars retrieved")
+        result.warnings.append("No similar factory presets were found")
         return result
 
     best_score = 1.0 - exemplars[0].get("distance", 1.0)
     if best_score < min_score:
         result.warnings.append(
-            f"Best exemplar score ({best_score:.3f}) below threshold ({min_score})"
+            f"The closest factory preset match was weak (score: {best_score:.3f})"
         )
 
     return result
@@ -174,7 +176,7 @@ def validate_phase2(
     result = ValidationResult()
 
     if not components:
-        result.errors.append("Phase 2 returned empty component list")
+        result.errors.append("No components were generated for the preset")
         return result
 
     for comp in components:
@@ -231,13 +233,13 @@ def validate_signal_chain_order(
             cab_idx = idx
 
     if amp_idx is None:
-        result.errors.append("No amp component found in signal chain")
+        result.errors.append("No amplifier was found in the signal chain")
 
     if cab_idx is None:
-        result.warnings.append("No cabinet component emitted by LLM")
+        result.warnings.append("No cabinet component was included in the signal chain")
 
     if amp_idx is not None and cab_idx is not None and cab_idx < amp_idx:
-        result.warnings.append("Cabinet appears before amp in signal chain")
+        result.warnings.append("The cabinet appears before the amplifier — this may cause issues")
 
     return result
 
@@ -261,7 +263,7 @@ def validate_pre_build(
     result = ValidationResult()
 
     if not components:
-        result.errors.append("Empty component list — nothing to build")
+        result.errors.append("No components to build — the preset is empty")
         return result
 
     names = [c.component_name for c in components]
@@ -269,13 +271,15 @@ def validate_pre_build(
 
     has_cab = any(_is_cabinet_solution(n) for n in names)
     if not has_cab:
-        result.errors.append("No cabinet component — preset will not load correctly")
+        result.errors.append(
+            "Missing cabinet component — the preset may not load correctly in Guitar Rig"
+        )
 
     # Duplicate component_ids (unusual but possible error)
     seen_ids: set[int] = set()
     for cid in ids:
         if cid in seen_ids:
-            result.warnings.append(f"Duplicate component_id: {cid}")
+            result.warnings.append(f"Duplicate component detected (ID {cid})")
         seen_ids.add(cid)
 
     return result
