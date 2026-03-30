@@ -752,7 +752,7 @@ def test_validate_crp_params_casts_float_to_int() -> None:
 
 
 def test_validate_crp_params_valid_range_no_warning(caplog: pytest.LogCaptureFixture) -> None:
-    comps = [_crp_component(cab1=17, mic1=1, mpos1=0)]
+    comps = [_crp_component(cab1=18, mic1=1, mpos1=0)]
     with caplog.at_level("WARNING"):
         _validate_crp_params(comps)
     assert caplog.text == ""
@@ -780,7 +780,7 @@ def test_validate_crp_params_missing_mpos1_warns(caplog: pytest.LogCaptureFixtur
 
 
 def test_validate_crp_params_out_of_range_cab1_warns(caplog: pytest.LogCaptureFixture) -> None:
-    comps = [_crp_component(cab1=30)]
+    comps = [_crp_component(cab1=31)]
     with caplog.at_level("WARNING"):
         _validate_crp_params(comps)
     assert "out of range" in caplog.text

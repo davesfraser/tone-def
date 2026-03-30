@@ -192,7 +192,7 @@ _CRP_INTEGER_PARAMS: frozenset[str] = frozenset(
 )
 
 # Valid ranges for CRP cabinet/mic/position integer enums.
-_CRP_CAB_MAX = 28
+_CRP_CAB_MAX = 30
 _CRP_MIC_MAX = 4
 _CRP_MPOS_MAX = 2
 

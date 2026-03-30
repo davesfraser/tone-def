@@ -564,7 +564,7 @@ Constraints:
 - All param_id keys must exactly match those in the component_schema.
 - All parameter values must be floats in the range [0.0, 1.0], EXCEPT:
   * Cab on Matched Cabinet Pro - integer enum (0-25)
-  * Cab1-Cab8 on Control Room Pro - integer enum (0-28)
+  * Cab1-Cab8 on Control Room Pro - integer enum (0-30)
   * Mic1-Mic8 on Control Room Pro - integer enum (0-4)
   * MPos1-MPos8 on Control Room Pro - integer enum (0-2)
 - g1-g8 in the Control Room Pro schema correspond to the per-channel Level
@@ -617,7 +617,7 @@ Output:
     "confidence": "estimated",
     "rationale": "FULL_PRODUCTION chain needs studio cab/mic simulation. SM57 on cap captures the aggressive midrange; moderate room amount recreates the live-room feel of the Texas Flood sessions.",
     "description": "Virtual studio room with cabinet, microphone, and room ambience modelling",
-    "parameters": {"Pwr": 1.0, "L": 0.0, "v": 0.8, "Cab1": 17, "Mic1": 1, "MPos1": 0, "g1": 0.85, "p1": 0.5, "m1": 0.0, "s1": 0.0, "r1": 0.25, "rm1": 0.0, "g2": 0.5, "g3": 0.5, "g4": 0.5, "g5": 0.5, "g6": 0.5, "g7": 0.5, "g8": 0.5, "p2": 0.5, "p3": 0.5, "p4": 0.5, "p5": 0.5, "p6": 0.5, "p7": 0.5, "p8": 0.5, "a": 0.15, "b": 0.5, "t": 0.5, "st": 1.0}
+    "parameters": {"Pwr": 1.0, "L": 0.0, "v": 0.8, "Cab1": 18, "Mic1": 1, "MPos1": 0, "g1": 0.85, "p1": 0.5, "m1": 0.0, "s1": 0.0, "r1": 0.25, "rm1": 0.0, "g2": 0.5, "g3": 0.5, "g4": 0.5, "g5": 0.5, "g6": 0.5, "g7": 0.5, "g8": 0.5, "p2": 0.5, "p3": 0.5, "p4": 0.5, "p5": 0.5, "p6": 0.5, "p7": 0.5, "p8": 0.5, "a": 0.15, "b": 0.5, "t": 0.5, "st": 1.0}
   },
   {
     "component_name": "Solid EQ",
@@ -653,7 +653,7 @@ Output:
 
 Note: Control Room Pro replaces Matched Cabinet Pro for FULL_PRODUCTION —
 it handles cabinet, room, and mic simulation internally. Tweed Delight →
-Cab1=17 (1x12 Tweed) from crp_reference, Mic1=1 (SM57), MPos1=0 (Cap).
+Cab1=18 (1x12 Tweed) from crp_reference, Mic1=1 (SM57), MPos1=0 (Cap).
 g1=0.85 sets channel 1 to a strong level (~-3 dB). r1=0.25 adds moderate
 room ambience matching the SRV studio recording. a=0.15 adds subtle air.
 Channels 2-8 omitted parameters are filled from schema defaults.

@@ -14,7 +14,7 @@ def test_load_crp_enums_has_three_sections() -> None:
 
 def test_load_crp_enums_cabinet_count() -> None:
     enums = load_crp_enums()
-    assert len(enums["cabinets"]) == 29  # 0-28
+    assert len(enums["cabinets"]) == 31  # 0-30
 
 
 def test_load_crp_enums_mic_count() -> None:
@@ -29,7 +29,11 @@ def test_load_crp_enums_mpos_count() -> None:
 
 def test_load_crp_enums_contiguous_keys() -> None:
     enums = load_crp_enums()
-    for label, data in enums.items():
+    # Cabinets are 0-indexed (0-30), mics and mic_positions are 0-indexed
+    cab_expected = {str(i) for i in range(len(enums["cabinets"]))}
+    assert set(enums["cabinets"].keys()) == cab_expected, "cabinets: non-contiguous keys"
+    for label in ("microphones", "mic_positions"):
+        data = enums[label]
         expected = {str(i) for i in range(len(data))}
         assert set(data.keys()) == expected, f"{label}: non-contiguous keys"
 
@@ -60,4 +64,4 @@ def test_format_crp_reference_includes_specific_entries() -> None:
 def test_format_crp_reference_uses_integer_keys() -> None:
     result = format_crp_reference()
     assert " 0 = DI Box" in result
-    assert "28 = 4x12 Rammfire" in result
+    assert "30 = 4x12 Rammfire B" in result
