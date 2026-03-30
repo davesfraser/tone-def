@@ -215,15 +215,22 @@ This prevents out-of-range values from causing GR7 to reject the preset.
 
 ```
 src/tonedef/
-    ngrr_parser.py        parse .ngrr binary files → XML, component lists, metadata
-    ngrr_builder.py       write .ngrr binary files — transplant, name update, UUID refresh
-    xml_builder.py        assemble non-fix-components XML from component JSON
-    component_mapper.py   phase 2 orchestrator — exemplar retrieval, LLM refinement, cabinet enforcement
-    exemplar_store.py     build and query the preset exemplar dataset
-    retriever.py          ChromaDB retrieval — exemplar search, manual chunk search, category-stratified search
-    prompts.py            SYSTEM_PROMPT, EXEMPLAR_REFINEMENT_PROMPT
-    paths.py              all filesystem paths in one place
-    settings.py           configuration values
+    ngrr_parser.py          parse .ngrr binary files → XML, component lists, metadata
+    ngrr_builder.py         write .ngrr binary files — transplant, name update, UUID refresh
+    xml_builder.py          assemble non-fix-components XML from component JSON
+    component_mapper.py     phase 2 orchestrator — exemplar retrieval, LLM refinement, cabinet enforcement
+    exemplar_store.py       build and query the preset exemplar dataset
+    retriever.py            ChromaDB retrieval — exemplar search, manual chunk search, category-stratified search
+    prompts.py              SYSTEM_PROMPT, EXEMPLAR_REFINEMENT_PROMPT
+    models.py               Pydantic models — ParsedSignalChain, ComponentOutput, PresetMetadata
+    pipeline.py             end-to-end orchestration — query → Phase 1 → Phase 2 → XML → .ngrr
+    signal_chain_parser.py  parse Phase 1 LLM output into structured ParsedSignalChain
+    validation.py           pure validation functions for Phase 1/2 output — user-facing messages
+    crp_lookup.py           Control Room Pro cabinet/mic/position enum lookup
+    tonal_vocab.py          tonal descriptor vocabulary for modifier UI chips
+    manual_parser.py        GR7 manual PDF parsing — text extraction and chunking
+    paths.py                all filesystem paths in one place
+    settings.py             configuration values
 
 scripts/
     build_component_schema.py     parse presets → component_schema.json
@@ -232,14 +239,17 @@ scripts/
     build_retrieval_index.py      index manual chunks into ChromaDB
     build_exemplar_index.py       index factory presets → exemplar_store.json
     build_amp_cabinet_lookup.py   build amp → Matched Cabinet Pro lookup table
+    build_crp_lookup.py           build Control Room Pro enum lookup → crp_enum_lookup.json
     check_pipeline.py             verify all pipeline artefacts exist
+    diagnose_pipeline.py          detailed pipeline diagnostic with intermediate outputs
 
 tests/                    329 tests, all passing
 notebooks/marimo/         8 exploration and evaluation notebooks
 data/
     external/presets/     1425 factory .ngrr presets (source data, read-only)
     processed/            component_schema.json, amp_cabinet_lookup.json, tag_catalogue.json,
-                          exemplar_store.json, gr_manual_chunks.json, chromadb/
+                          exemplar_store.json, gr_manual_chunks.json, crp_enum_lookup.json,
+                          tonal_descriptors.json, chromadb/
 ```
 
 ---

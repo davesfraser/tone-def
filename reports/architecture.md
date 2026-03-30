@@ -248,3 +248,26 @@ The app uses a single-page progressive layout with three stages:
 
 All user input and LLM-generated content is HTML-escaped before rendering
 via `unsafe_allow_html=True` to prevent XSS.
+
+## 10. Key Design Decisions
+
+- **FULL_PRODUCTION chain type = "gear archaeology"** — reference and education, not replication.
+  When a user asks about a specific recording, the output is an informed reconstruction with
+  honest provenance labels, not a claim of exact reproduction.
+- **Blank template transplant** — preset generation injects XML into a known-good blank template
+  rather than constructing the binary container from scratch. This isolates the problem to the
+  fields that actually change.
+- **Amplifiers tag category excluded** from tag catalogue — redundant with component selection and
+  would bias exemplar retrieval toward amp name matching rather than tonal similarity.
+- **Cabinet and mic recommendation mandatory** for all chain types, even AMP_ONLY — the LLM must
+  always commit to a specific speaker cabinet and microphone placement.
+- **Exemplar-first architecture** — the LLM adjusts factory presets rather than building from
+  scratch, producing more realistic parameter combinations.
+- **Deterministic cabinet assignment** via `amp_cabinet_lookup.json` — the Cab parameter is an
+  integer enum (not a normalised float), so it must come from a verified lookup rather than LLM
+  inference.
+- **CRP cabinet enums are 0-indexed (0–30)**: 0 = DI Box, 1 = Nothing (bypass), 2–28 = named
+  cabinets, 29 = Rammfire A, 30 = Rammfire B.
+- **Google Sheet equivalencies source dropped** — LLM-generated, unreliable.
+- **Ali Jamieson page** used only for unambiguous 1:1 mappings (no hedging language).
+- **GR7 manual is primary source** for component identification via parsed manual chunks.
