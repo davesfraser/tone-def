@@ -1,11 +1,21 @@
 # ToneDef
 
-> *"I want the tone from Where The Streets Have No Name"* → loadable Guitar Rig 7 preset, in seconds.
+> *"Give me Mark Knopfler from Dire Straits tone from the Brothers in Arms album"* → loadable Guitar Rig 7 preset, in seconds.
 
 ToneDef is a GenAI application that bridges the gap between *wanting* a guitar tone and *having* it
 loaded in your software. Describe a sound in natural language — referencing an artist, a recording,
 or just a vibe — and it produces a downloadable Guitar Rig 7 preset file alongside a plain-language
 explanation of what it built and why.
+
+---
+
+## What is Guitar Rig?
+
+[Guitar Rig 7](https://www.native-instruments.com/en/products/komplete/guitar/guitar-rig-7-pro/) is
+a guitar amp and effects emulation suite by Native Instruments. It models classic amplifiers, speaker
+cabinets, stompboxes, and studio effects as software components that guitarists load into a virtual
+signal chain. Presets are saved as `.ngrr` files — a proprietary binary format that bundles the
+component configuration, parameter values, and metadata into a single file.
 
 This is also a portfolio project demonstrating a multi-stage GenAI engineering pipeline: exemplar-first
 RAG retrieval, binary file format reverse engineering, structured LLM output with few-shot grounding,
@@ -27,11 +37,11 @@ amplifiers were used → find which Guitar Rig component maps to that hardware �
 knob based on documented settings or reasonable estimates. That is 30 minutes of research for a
 single tone. ToneDef does it in seconds.
 
-**What it does not do**: ToneDef is not a tone replication tool. When you ask about a specific
-recording, it performs *gear archaeology* — an informed reconstruction of what was likely used
-and why it sounds the way it does. Room acoustics, tape response, and vintage component variation
-are not recoverable from gear documentation. The output is a grounded starting point, not a
-forensic replica.
+**What it does not do**: ToneDef is not a tone replication tool (it does its best...).
+When you ask about a specific recording, it performs *gear archaeology* — an informed reconstruction
+of what was likely used and why it sounds the way it does. Room acoustics, tape response, and vintage
+component variation are not recoverable from gear documentation. The output is what is hopefully a
+grounded starting point, not a forensic replica.
 
 ---
 
@@ -40,10 +50,17 @@ forensic replica.
 Given a query like *"I want the SRV Texas Blues tone"* or *"something super fizzy and trebly and
 aggressive"*, ToneDef returns:
 
-1. **A plain-language signal chain** — which hardware, in what order, with honest provenance labels
-   (`DOCUMENTED` / `INFERRED` / `ESTIMATED`) distinguishing verified sources from informed guesses.
-2. **A downloadable `.ngrr` preset file** — a valid Guitar Rig 7 preset the user drags straight
+1. **A tone overview** — a narrative explanation of the sound: why a particular chain type was
+   chosen, what makes this tone work, genre and character tags, and guitar/playing tips.
+2. **A component-by-component breakdown** — each Guitar Rig 7 component shown as a styled card
+   with its rationale, human-readable parameter values, modification type, and confidence level.
+3. **A downloadable `.ngrr` preset file** — a valid Guitar Rig 7 preset the user drags straight
    into the software. Every component is matched, every knob is set.
+
+Under the hood, Phase 1 also produces a detailed signal chain with hardware names and provenance
+labels (`DOCUMENTED` / `INFERRED` / `ESTIMATED`) — this is available in the raw output expander
+and drives the component mapping, but the primary UI presents the mapped GR7 components rather
+than the intermediate hardware analysis.
 
 ---
 
@@ -217,8 +234,8 @@ scripts/
     build_amp_cabinet_lookup.py   build amp → Matched Cabinet Pro lookup table
     check_pipeline.py             verify all pipeline artefacts exist
 
-tests/                    101 tests, all passing
-notebooks/marimo/         5 exploration notebooks
+tests/                    329 tests, all passing
+notebooks/marimo/         8 exploration and evaluation notebooks
 data/
     external/presets/     1425 factory .ngrr presets (source data, read-only)
     processed/            component_schema.json, amp_cabinet_lookup.json, tag_catalogue.json,
@@ -271,8 +288,10 @@ uv run python scripts/build_amp_cabinet_lookup.py
 
 ## Roadmap
 
-- **V4 — Iterative refinement**: chat-based follow-up queries ("make it brighter", "add more
+- **v0.4 — Iterative refinement**: chat-based follow-up queries ("make it brighter", "add more
   reverb") with diff-based preset editing and session state
 - **Tavily RAG**: web retrieval to enrich phase 1 with live gear documentation; currently a
   `{{TAVILY_RESULTS}}` placeholder in SYSTEM_PROMPT, deferred as the system performs well
   without it
+- **Multi-platform support**: extend preset generation to other amp emulation software (Helix
+  Native, Amplitube, BIAS FX) by abstracting the binary builder and component schema layers
