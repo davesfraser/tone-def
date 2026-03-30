@@ -33,6 +33,8 @@ class ComponentOutput(BaseModel):
     base_exemplar: str = ""
     modification: Literal["unchanged", "adjusted", "swapped", "added"]
     confidence: Literal["documented", "inferred", "estimated"]
+    rationale: str = ""
+    description: str = ""
     parameters: dict[str, float | int]
 
     @model_validator(mode="before")

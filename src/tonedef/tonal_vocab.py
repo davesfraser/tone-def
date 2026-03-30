@@ -7,7 +7,8 @@ Descriptors are organised by signal chain zone:
   pre_amp, amp, cabinet, room_mic, post_cab
 
 For FULL_PRODUCTION chains all zones apply; for AMP_ONLY chains the
-room_mic zone is omitted (CRP is not used).
+room_mic zone is limited to Mic Placement and Room Character groups
+(Mic Tone requires Control Room Pro and is excluded).
 """
 
 from __future__ import annotations
@@ -21,14 +22,14 @@ _DESCRIPTORS_PATH = DATA_PROCESSED / "tonal_descriptors.json"
 
 # Zones relevant to each chain type
 _FULL_PRODUCTION_ZONES = ("pre_amp", "amp", "cabinet", "room_mic", "post_cab")
-_AMP_ONLY_ZONES = ("pre_amp", "amp", "cabinet", "post_cab")
+_AMP_ONLY_ZONES = ("pre_amp", "amp", "cabinet", "room_mic", "post_cab")
 
 # Display labels for prompt output
 _ZONE_LABELS: dict[str, str] = {
     "pre_amp": "PRE-AMP / PEDALS",
     "amp": "AMPLIFIER",
     "cabinet": "CABINET",
-    "room_mic": "ROOM & MICROPHONE (Control Room Pro)",
+    "room_mic": "ROOM & MICROPHONE",
     "post_cab": "POST-CABINET / EFFECTS",
 }
 
@@ -79,6 +80,10 @@ def get_zones_for_chain_type(chain_type: str) -> tuple[str, ...]:
     return _AMP_ONLY_ZONES
 
 
+# Groups that only apply when Control Room Pro is available
+_CRP_ONLY_GROUPS: frozenset[str] = frozenset({"Mic Tone"})
+
+
 def format_tonal_descriptors(
     chain_type: str,
     descriptors: dict[str, list[dict]] | None = None,
@@ -86,7 +91,8 @@ def format_tonal_descriptors(
     """Format tonal descriptors as a prompt-ready string.
 
     Only includes zones relevant to the given chain type.  For AMP_ONLY
-    chains the room_mic zone is omitted entirely, saving tokens.
+    chains the room_mic zone includes Mic Placement and Room Character
+    groups (mapped to MCP X-Fade) but excludes Mic Tone (CRP only).
 
     Args:
         chain_type: ``"FULL_PRODUCTION"`` or ``"AMP_ONLY"``.
@@ -101,12 +107,17 @@ def format_tonal_descriptors(
         descriptors = load_tonal_descriptors()
 
     zones = get_zones_for_chain_type(chain_type)
+    is_amp_only = chain_type != "FULL_PRODUCTION"
     sections: list[str] = []
 
     for zone in zones:
         entries = descriptors.get(zone, [])
         if not entries:
             continue
+        if is_amp_only and zone == "room_mic":
+            entries = [e for e in entries if e.get("group") not in _CRP_ONLY_GROUPS]
+            if not entries:
+                continue
         label = _ZONE_LABELS.get(zone, zone.upper())
         lines: list[str] = [f"{label}:"]
         for entry in entries:

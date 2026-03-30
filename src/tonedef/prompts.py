@@ -54,12 +54,14 @@ CABINET:
   enclosure size
 
 ROOM & MICROPHONE:
-* Mic Placement (close-miked, present, distant) → adjust mic distance and
-  position in Control Room Pro
-* Room Character (intimate, roomy, live-room, dead-room, air) → adjust CRP
-  room size, reflections, and room mix
+* Mic Placement (close-miked, present, distant) → for FULL_PRODUCTION
+  adjust mic distance and position in Control Room Pro; for AMP_ONLY
+  adjust X-Fade (mic distance) on Matched Cabinet Pro
+* Room Character (intimate, roomy, live-room, dead-room, air) → for
+  FULL_PRODUCTION adjust CRP room amount, reflections, and Air; for
+  AMP_ONLY increase Matched Cabinet Pro X-Fade to add room
 * Mic Tone (silky, aggressive, smooth, detailed) → choose mic type and
-  position for tonal character
+  position for tonal character (Control Room Pro only)
 
 EFFECTS & SPACE:
 * Spatial Amount (more ambient, drier) → adjust reverb/delay mix or
@@ -539,6 +541,8 @@ Return a JSON array. Each element must have exactly these fields:
   "base_exemplar": "name of exemplar preset used as starting point",
   "modification": "unchanged" | "adjusted" | "swapped" | "added",
   "confidence": "documented" | "inferred" | "estimated",
+  "rationale": "1-2 sentences explaining why this component was chosen and how its parameters achieve the requested tone",
+  "description": "1 sentence explaining what this component does and how it shapes the tone in plain language",
   "parameters": {
     "<param_id>": <float or int>,
     ...
@@ -558,8 +562,14 @@ confidence values:
 
 Constraints:
 - All param_id keys must exactly match those in the component_schema.
-- All parameter values must be floats in the range [0.0, 1.0], EXCEPT the
-  Cab parameter on Matched Cabinet Pro which is an integer enum.
+- All parameter values must be floats in the range [0.0, 1.0], EXCEPT:
+  * Cab on Matched Cabinet Pro - integer enum (0-25)
+  * Cab1-Cab8 on Control Room Pro - integer enum (0-28)
+  * Mic1-Mic8 on Control Room Pro - integer enum (0-4)
+  * MPos1-MPos8 on Control Room Pro - integer enum (0-2)
+- g1-g8 in the Control Room Pro schema correspond to the per-channel Level
+  faders described in the manual - 1.0 = full level (0 dB), 0.5 = default
+  (significantly quieter, approximately -6 dB). They are NOT gain boosts.
 - The parameters object must include EVERY parameter listed in the
   component_schema for that component.
 - Matched Cabinet Pro (156000) must appear after the amp. Post-cabinet
@@ -585,6 +595,8 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "adjusted",
     "confidence": "inferred",
+    "rationale": "SRV's signature mid-hump comes from a Tube Screamer pushing the amp into thick sustain. Drive at 0.45 adds grit without masking pick dynamics.",
+    "description": "Classic overdrive pedal that adds warm midrange push and sustain",
     "parameters": {"Pwr": 1.0, "Drv": 0.45, "Ton": 0.55, "Vol": 0.7}
   },
   {
@@ -593,6 +605,8 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "swapped",
     "confidence": "inferred",
+    "rationale": "Swapped from the exemplar's Plexi to a Fender-voiced amp — SRV's core tone is a cranked Fender with sag and bloom. Presence and treble set high to retain sparkle under heavy drive.",
+    "description": "Fender-voiced tube amplifier delivering warm cleans that break up into rich, blooming overdrive",
     "parameters": {"Pwr": 1.0, "Pr": 0.55, "Tb": 0.6, "Md": 0.65, "Bs": 0.5, "MV": 0.75, "Vol": 0.65, "Br": 0.5, "TSp": 0.5, "TDt": 0.0}
   },
   {
@@ -601,7 +615,9 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "added",
     "confidence": "estimated",
-    "parameters": {"Pwr": 1.0, "L": 0.0, "v": 0.8, "Cab1": 17, "Mic1": 1, "MPos1": 0, "g1": 0.55, "g2": 0.5, "g3": 0.5, "g4": 0.5, "g5": 0.5, "g6": 0.5, "g7": 0.5, "g8": 0.5, "p1": 0.5, "p2": 0.5, "p3": 0.5, "p4": 0.5}
+    "rationale": "FULL_PRODUCTION chain needs studio cab/mic simulation. SM57 on cap captures the aggressive midrange; moderate room amount recreates the live-room feel of the Texas Flood sessions.",
+    "description": "Virtual studio room with cabinet, microphone, and room ambience modelling",
+    "parameters": {"Pwr": 1.0, "L": 0.0, "v": 0.8, "Cab1": 17, "Mic1": 1, "MPos1": 0, "g1": 0.85, "p1": 0.5, "m1": 0.0, "s1": 0.0, "r1": 0.25, "rm1": 0.0, "g2": 0.5, "g3": 0.5, "g4": 0.5, "g5": 0.5, "g6": 0.5, "g7": 0.5, "g8": 0.5, "p2": 0.5, "p3": 0.5, "p4": 0.5, "p5": 0.5, "p6": 0.5, "p7": 0.5, "p8": 0.5, "a": 0.15, "b": 0.5, "t": 0.5, "st": 1.0}
   },
   {
     "component_name": "Solid EQ",
@@ -609,6 +625,8 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "added",
     "confidence": "estimated",
+    "rationale": "Mix EQ sculpts the recorded tone — low-end roll-off keeps bass tight, gentle upper-mid lift preserves SRV's cutting presence in the mix.",
+    "description": "Studio-grade equaliser for shaping the overall tonal balance",
     "parameters": {"Pwr": 1.0, "LF_F": 0.3, "LF_G": 0.55, "LMF_F": 0.35, "LMF_G": 0.52, "LMF_Q": 0.5, "HMF_F": 0.6, "HMF_G": 0.54, "HMF_Q": 0.5, "HF_F": 0.7, "HF_G": 0.56}
   },
   {
@@ -617,6 +635,8 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "added",
     "confidence": "estimated",
+    "rationale": "Studio bus compression glues the tone together. Slow attack preserves pick transients, moderate mix retains dynamics while adding cohesion.",
+    "description": "Warm tube-style compressor that smooths dynamics and adds cohesion",
     "parameters": {"Pwr": 1.0, "Inp": 0.6, "Att": 0.3, "Rel": 0.5, "Out": 0.65, "Mix": 0.7, "SC": 0.0}
   },
   {
@@ -625,6 +645,8 @@ Output:
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "added",
     "confidence": "estimated",
+    "rationale": "Texas Flood has a natural room ambience. Medium hall at low mix adds depth without washing out the aggressive attack.",
+    "description": "Hall reverb adding natural room depth and ambience",
     "parameters": {"Pwr": 1.0, "Mix": 0.2, "Tm": 0.35, "Dmp": 0.5, "Sz": 0.55, "Pre": 0.3, "Col": 0.5}
   }
 ]
@@ -632,6 +654,9 @@ Output:
 Note: Control Room Pro replaces Matched Cabinet Pro for FULL_PRODUCTION —
 it handles cabinet, room, and mic simulation internally. Tweed Delight →
 Cab1=17 (1x12 Tweed) from crp_reference, Mic1=1 (SM57), MPos1=0 (Cap).
+g1=0.85 sets channel 1 to a strong level (~-3 dB). r1=0.25 adds moderate
+room ambience matching the SRV studio recording. a=0.15 adds subtle air.
+Channels 2-8 omitted parameters are filled from schema defaults.
 
 
 EXAMPLE 2 — AMP_ONLY (general artist style, focused chain)
@@ -649,6 +674,8 @@ Output:
     "base_exemplar": "800 Clean",
     "modification": "added",
     "confidence": "estimated",
+    "rationale": "Light studio-style compression evens out clean jazz dynamics. Low ratio and moderate threshold preserve the natural touch response.",
+    "description": "Transparent studio compressor that controls dynamics without colouring the tone",
     "parameters": {"Pwr": 1.0, "Att": 0.3, "Rel": 0.5, "Thr": 0.6, "Rat": 0.3, "Vol": 0.65}
   },
   {
@@ -657,6 +684,8 @@ Output:
     "base_exemplar": "800 Clean",
     "modification": "swapped",
     "confidence": "inferred",
+    "rationale": "Swapped to a Fender-voiced clean amp with warm lows and soft treble — the classic jazz platform. Bright switch off to keep the top end smooth.",
+    "description": "Fender-style jazz amplifier known for warm, round clean tones",
     "parameters": {"Pwr": 1.0, "Pr": 0.4, "Tb": 0.55, "Md": 0.6, "Bs": 0.5, "MV": 0.5, "Vol": 0.6, "Br": 0.0, "TSp": 0.5, "TDt": 0.0}
   },
   {
@@ -665,10 +694,13 @@ Output:
     "base_exemplar": "800 Clean",
     "modification": "adjusted",
     "confidence": "documented",
+    "rationale": "Cabinet matched to the Jazz Amp from the lookup table. Mic pulled slightly back (c=0.2) for a natural jazz-room feel rather than an in-your-face close-mic sound.",
+    "description": "Matched speaker cabinet that pairs with the amplifier for authentic tone shaping",
     "parameters": {"Pwr": 1.0, "MV": 0.45, "c": 0.2, "Cab": 5, "V": 1.0, "st": 1.0}
   }
 ]
 
-Note: Jazz Amp → Cab=5 from the cabinet_lookup table.
+Note: Jazz Amp → Cab=5 from the cabinet_lookup table. c=0.2 places the
+mic slightly back from the cabinet for a natural jazz-room feel.
 </examples>
 """

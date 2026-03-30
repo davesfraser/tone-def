@@ -359,6 +359,7 @@ def _make_matched_cabinet_pro(
         "base_exemplar": base_exemplar,
         "modification": "adjusted",
         "confidence": "documented",
+        "rationale": "Cabinet matched to the selected amp from the deterministic lookup table.",
         "parameters": params,
     }
 
@@ -426,7 +427,7 @@ def map_components(
     parsed: ParsedSignalChain,
     client: anthropic.Anthropic,
     model: str = "claude-sonnet-4-6",
-) -> list[dict]:
+) -> tuple[list[dict], list[dict]]:
     """
     Map a Phase 1 signal chain to an ordered list of GR7 component dicts.
 
@@ -448,9 +449,11 @@ def map_components(
         model: Anthropic model identifier.
 
     Returns:
-        Ordered list of component dicts, each with:
-            component_name, component_id, base_exemplar,
-            modification, confidence, parameters.
+        Tuple of (components, exemplars):
+            components: Ordered list of component dicts, each with
+                component_name, component_id, base_exemplar,
+                modification, confidence, parameters.
+            exemplars: List of exemplar dicts retrieved for this query.
 
     Raises:
         ValueError: If the LLM response cannot be parsed as a JSON array.
@@ -605,4 +608,4 @@ def map_components(
         # CRP is present — validate Cab1/Mic1/MPos1 and cast to int.
         _validate_crp_params(components)
 
-    return components
+    return components, exemplars

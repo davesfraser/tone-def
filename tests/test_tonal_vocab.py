@@ -39,9 +39,9 @@ def test_get_zones_full_production() -> None:
     assert "post_cab" in zones
 
 
-def test_get_zones_amp_only_omits_room_mic() -> None:
+def test_get_zones_amp_only_includes_room_mic() -> None:
     zones = get_zones_for_chain_type("AMP_ONLY")
-    assert "room_mic" not in zones
+    assert "room_mic" in zones
     assert "pre_amp" in zones
     assert "amp" in zones
 
@@ -52,10 +52,20 @@ def test_format_full_production_includes_room_mic() -> None:
     assert '"air"' in result
 
 
-def test_format_amp_only_excludes_room_mic() -> None:
+def test_format_amp_only_includes_room_mic_placement() -> None:
     result = format_tonal_descriptors("AMP_ONLY")
-    assert "ROOM & MICROPHONE" not in result
-    assert '"air"' not in result
+    assert "ROOM & MICROPHONE" in result
+    assert '"close-miked"' in result
+    assert '"distant"' in result
+    assert '"roomy"' in result
+    assert '"air"' in result
+
+
+def test_format_amp_only_excludes_mic_tone() -> None:
+    result = format_tonal_descriptors("AMP_ONLY")
+    assert '"silky"' not in result
+    assert '"aggressive"' not in result
+    assert '"detailed"' not in result
 
 
 def test_format_includes_common_descriptors() -> None:
@@ -202,3 +212,34 @@ def test_all_descriptors_have_ui_fields() -> None:
         for entry in entries:
             assert "ui_label" in entry, f"{zone}/{entry['term']} missing 'ui_label'"
             assert "ui_description" in entry, f"{zone}/{entry['term']} missing 'ui_description'"
+
+
+# -------------------------------------------------------------------
+# Room/mic descriptors reference MCP X-Fade
+# -------------------------------------------------------------------
+
+
+def test_room_mic_placement_deltas_reference_mcp_xfade() -> None:
+    """Mic Placement and Room Character deltas that affect distance must mention MCP X-Fade."""
+    desc = load_tonal_descriptors()
+    room_entries = desc["room_mic"]
+    # "present" is a mic position/type selection (CRP-only), not a distance param
+    distance_terms = [
+        e
+        for e in room_entries
+        if (
+            e["group"] in ("Mic Placement", "Room Character")
+            and "mic_distance" in e.get("affects", [])
+        )
+        or e["group"] == "Room Character"
+    ]
+    for entry in distance_terms:
+        assert "MCP X-Fade" in entry["delta"], (
+            f"room_mic/{entry['term']} delta missing MCP X-Fade reference"
+        )
+
+
+def test_room_mic_format_includes_mcp_xfade_for_amp_only() -> None:
+    """AMP_ONLY formatted output should contain MCP X-Fade guidance."""
+    result = format_tonal_descriptors("AMP_ONLY")
+    assert "MCP X-Fade" in result

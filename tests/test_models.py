@@ -35,6 +35,7 @@ _VALID_DICT: dict = {
     "base_exemplar": "My Preset",
     "modification": "adjusted",
     "confidence": "documented",
+    "rationale": "Classic Fender-voiced amp for warm cleans.",
     "parameters": {"vb": 0.8, "vo": 0.5},
 }
 
@@ -57,6 +58,25 @@ class TestComponentOutputValid:
         del d["base_exemplar"]
         comp = ComponentOutput.model_validate(d)
         assert comp.base_exemplar == ""
+
+    def test_rationale_preserved(self) -> None:
+        comp = ComponentOutput.model_validate(_VALID_DICT)
+        assert comp.rationale == "Classic Fender-voiced amp for warm cleans."
+
+    def test_default_rationale(self) -> None:
+        d = {**_VALID_DICT}
+        del d["rationale"]
+        comp = ComponentOutput.model_validate(d)
+        assert comp.rationale == ""
+
+    def test_description_preserved(self) -> None:
+        d = {**_VALID_DICT, "description": "Warm tube amplifier."}
+        comp = ComponentOutput.model_validate(d)
+        assert comp.description == "Warm tube amplifier."
+
+    def test_default_description(self) -> None:
+        comp = ComponentOutput.model_validate(_VALID_DICT)
+        assert comp.description == ""
 
     def test_parameters_preserved(self) -> None:
         comp = ComponentOutput.model_validate(_VALID_DICT)
