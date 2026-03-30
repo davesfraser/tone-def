@@ -14,9 +14,10 @@ from tonedef.component_mapper import load_amp_cabinet_lookup, load_schema, map_c
 from tonedef.models import ComponentOutput
 from tonedef.ngrr_builder import transplant_preset
 from tonedef.paths import DATA_EXTERNAL
-from tonedef.pipeline import generate_signal_chain
+from tonedef.pipeline import compose_query, generate_signal_chain
 from tonedef.settings import settings
 from tonedef.signal_chain_parser import ParsedSignalChain, parse_signal_chain
+from tonedef.tonal_vocab import get_all_selected_terms, get_ui_groups, load_descriptor_meta
 from tonedef.validation import (
     validate_phase1,
     validate_phase2,
@@ -38,6 +39,7 @@ st.set_page_config(page_title="ToneDef", page_icon="🎸", layout="wide")
 _DEFAULTS: dict[str, object] = {
     "page": "describe",
     "query": "",
+    "selected_modifiers": {},
     "signal_chain_raw": None,
     "signal_chain_parsed": None,
     "phase1_validation": None,
@@ -106,6 +108,7 @@ def _clear_results() -> None:
     st.session_state.preset_bytes = None
     st.session_state.preset_name = "ToneDef Preset"
     st.session_state.pop("_last_built_name", None)
+    st.session_state.selected_modifiers = {}
 
 
 def _render_unit_card(unit) -> None:  # noqa: ANN001
@@ -200,6 +203,7 @@ with st.sidebar:
         st.divider()
         if st.button("🔄  Start over", use_container_width=True):
             _clear_results()
+            st.session_state.selected_modifiers = {}
             st.session_state.query = ""
             st.session_state.page = "describe"
             st.rerun()
@@ -229,9 +233,69 @@ if st.session_state.page == "describe":
         with cols[i % 3]:
             if st.button(example, key=f"ex_{i}", use_container_width=True):
                 _clear_results()
+                st.session_state.selected_modifiers = {}
                 st.session_state.query = example
                 st.session_state.analysing = True
                 st.rerun()
+
+    # -------------------------------------------------------------------
+    # Tonal modifier chips — grouped by zone then sub-group
+    # -------------------------------------------------------------------
+
+    st.markdown("")  # spacer
+    st.markdown("###### Refine your tone *(optional)*")
+
+    _meta = load_descriptor_meta()
+    _zone_order = ("pre_amp", "amp", "cabinet", "room_mic", "post_cab")
+    _zone_info = _meta.get("zones", {})
+
+    sel: dict[str, str | None] = st.session_state.selected_modifiers
+
+    for zone in _zone_order:
+        z_meta = _zone_info.get(zone, {})
+        z_label = f"{z_meta.get('icon', '')} {z_meta.get('label', zone)}"
+        groups = get_ui_groups(zone)
+        if not groups:
+            continue
+
+        with st.expander(z_label):
+            for grp in groups:
+                grp_key = f"{zone}__{grp['group']}"
+                # Determine current selection
+                current = sel.get(grp_key)
+
+                # Build options list
+                options_list = [opt["ui_label"] for opt in grp["options"]]
+                term_by_label = {opt["ui_label"]: opt["term"] for opt in grp["options"]}
+                label_by_term = {opt["term"]: opt["ui_label"] for opt in grp["options"]}
+
+                # Pre-select the currently stored label (or None)
+                default_label = label_by_term.get(current) if current else None
+
+                header_col, help_col = st.columns([6, 1])
+                with header_col:
+                    chosen_label = st.pills(
+                        grp["group"],
+                        options_list,
+                        default=default_label,
+                        selection_mode="single",
+                        key=f"pills_{grp_key}",
+                    )
+                with help_col, st.popover("ℹ️"):  # noqa: RUF001
+                    st.markdown(f"**{grp['group']}** — {grp['description']}")
+                    for opt in grp["options"]:
+                        st.markdown(f"- **{opt['ui_label']}** — {opt['ui_description']}")
+
+                # Write the term (not label) back to session state
+                sel[grp_key] = term_by_label.get(chosen_label) if chosen_label else None  # type: ignore[arg-type]
+
+    st.session_state.selected_modifiers = sel
+
+    # Show active modifiers summary
+    selected_terms = get_all_selected_terms(sel)
+    if selected_terms:
+        pills_md = "  ".join(f"`{t}`" for t in selected_terms)
+        st.markdown(f"**Active modifiers:** {pills_md}")
 
     st.markdown("")  # spacer
 
@@ -249,7 +313,9 @@ if st.session_state.page == "describe":
     if st.session_state.analysing:
         with st.spinner("Analysing tone..."):
             client = get_client()
-            raw = generate_signal_chain(st.session_state.query, client)
+            modifiers = get_all_selected_terms(st.session_state.selected_modifiers)
+            composed = compose_query(st.session_state.query, modifiers)
+            raw = generate_signal_chain(composed, client)
             st.session_state.signal_chain_raw = raw
             parsed = parse_signal_chain(raw)
             st.session_state.signal_chain_parsed = parsed

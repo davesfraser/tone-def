@@ -380,11 +380,66 @@ def search_manual_for_categories(
     return [r for r in raw if r["component_name"] not in exclude_names]
 
 
+def search_manual_by_tonal_target(
+    query: str,
+    top_n: int = 5,
+    exclude_names: set[str] | None = None,
+) -> list[dict]:
+    """Retrieve manual chunks whose descriptions best match the tonal target.
+
+    Unlike :func:`search_manual_for_categories` this does NOT filter by
+    category exclusion — it finds the most tonally relevant components
+    across ALL categories, even those already covered by exemplars.  This
+    surfaces swap candidates (e.g. a Marshall amp when the exemplar has a
+    Vox) that the category-stratified search would miss.
+
+    Args:
+        query: Phase 1 signal chain text (embedding query).
+        top_n: Maximum number of results to return.
+        exclude_names: Optional component names to exclude (e.g. components
+            already documented via exact-match lookup).
+
+    Returns:
+        List of dicts with keys: component_name, category, text, distance.
+    """
+    exclude = exclude_names or set()
+    collection = _get_collection()
+    # Request extra results so we still have top_n after exclusion
+    results = collection.query(
+        query_texts=[query],
+        n_results=top_n + len(exclude),
+        include=["documents", "metadatas", "distances"],
+    )
+    items: list[dict] = []
+    seen: set[str] = set()
+    for doc, meta, dist in zip(
+        results["documents"][0],
+        results["metadatas"][0],
+        results["distances"][0],
+        strict=False,
+    ):
+        cname = meta.get("component_name", "")
+        if cname in seen or cname in exclude:
+            continue
+        seen.add(cname)
+        items.append(
+            {
+                "component_name": cname,
+                "category": meta.get("category", ""),
+                "text": doc,
+                "distance": dist,
+            }
+        )
+        if len(items) >= top_n:
+            break
+    return items
+
+
 # Per-category result budget for stratified descriptor search.
 # Ensures a full guitar signal chain is covered even when the query text
 # is dominated by a single tonal noun (e.g. "reverb" or "distortion").
-# Total: 8 results — Amplifiers x2, Distortion x2, Dynamics x1, Modulation x1,
-# Delay/Echo x1, Reverb x1.
+# Total: 10 results — Amplifiers x2, Distortion x2, Dynamics x1, Modulation x1,
+# Delay/Echo x1, Reverb x1, EQ x1, Cabinets x1.
 _DESCRIPTOR_ALLOCATION: dict[str, int] = {
     "Amplifiers": 2,
     "Distortion": 2,
@@ -392,4 +447,6 @@ _DESCRIPTOR_ALLOCATION: dict[str, int] = {
     "Modulation": 1,
     "Delay / Echo": 1,
     "Reverb": 1,
+    "EQ": 1,
+    "Cabinets": 1,
 }

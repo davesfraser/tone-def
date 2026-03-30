@@ -24,6 +24,7 @@ import re
 import anthropic
 from pydantic import ValidationError
 
+from tonedef.crp_lookup import format_crp_reference
 from tonedef.exemplar_store import format_exemplar_context
 from tonedef.models import ComponentOutput
 from tonedef.paths import DATA_PROCESSED
@@ -31,16 +32,27 @@ from tonedef.prompts import EXEMPLAR_REFINEMENT_PROMPT
 from tonedef.retriever import (
     get_manual_chunks_for_components,
     search_exemplars,
+    search_manual_by_tonal_target,
     search_manual_for_categories,
 )
 from tonedef.settings import settings
 from tonedef.signal_chain_parser import ParsedSignalChain, format_tonal_target
+from tonedef.tonal_vocab import format_tonal_descriptors
 
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _AMP_CABINET_LOOKUP_PATH = DATA_PROCESSED / "amp_cabinet_lookup.json"
 
 _MATCHED_CABINET_PRO_ID = 156000
 _MATCHED_CABINET_PRO_NAME = "Matched Cabinet Pro"
+
+# Cabinet-type components that replace Matched Cabinet Pro in the chain.
+# When ANY of these are present, Matched Cabinet Pro enforcement is skipped.
+_CONTROL_ROOM_NAMES: frozenset[str] = frozenset(
+    {
+        "Control Room",
+        "Control Room Pro",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -65,18 +77,17 @@ def load_amp_cabinet_lookup() -> dict[str, dict]:
 # ---------------------------------------------------------------------------
 
 
-def build_manual_reference_context(manual_results: list[dict]) -> str:
-    """Format manual chunk descriptions for the prompt.
+def _format_manual_section(manual_results: list[dict], max_chars: int = 600) -> str:
+    """Format a list of manual chunks into deduplicated text blocks.
 
     Args:
         manual_results: List of dicts with component_name, category, text.
+        max_chars: Maximum characters per component description.
 
     Returns:
-        Formatted string for {{MANUAL_REFERENCE}} injection.
+        Formatted text, or empty string if no results.
     """
-    if not manual_results:
-        return "(no manual descriptions available)"
-    sections = []
+    sections: list[str] = []
     seen: set[str] = set()
     for r in manual_results:
         name = r["component_name"]
@@ -85,11 +96,47 @@ def build_manual_reference_context(manual_results: list[dict]) -> str:
         seen.add(name)
         category = r.get("category", "")
         text = r.get("text", "")
-        trimmed = text[:600].rstrip()
-        if len(text) > 600:
+        trimmed = text[:max_chars].rstrip()
+        if len(text) > max_chars:
             trimmed += " ..."
         sections.append(f"[{name}] ({category})\n{trimmed}")
-    return "\n\n".join(sections) if sections else "(no manual descriptions available)"
+    return "\n\n".join(sections)
+
+
+def build_manual_reference_context(
+    exemplar_chunks: list[dict],
+    tonal_chunks: list[dict] | None = None,
+    gap_chunks: list[dict] | None = None,
+) -> str:
+    """Format manual chunks into three labelled sections for the prompt.
+
+    Args:
+        exemplar_chunks: Manual docs for components in the exemplar presets.
+        tonal_chunks: Manual docs for tonally relevant swap candidates.
+        gap_chunks: Manual docs for gap-filling components from missing
+            categories.
+
+    Returns:
+        Formatted string for ``{{MANUAL_REFERENCE}}`` injection with
+        three clearly labelled sections.
+    """
+    parts: list[str] = []
+
+    ex_text = _format_manual_section(exemplar_chunks)
+    if ex_text:
+        parts.append(f"--- COMPONENTS FROM EXEMPLARS ---\n{ex_text}")
+
+    if tonal_chunks:
+        tonal_text = _format_manual_section(tonal_chunks)
+        if tonal_text:
+            parts.append(f"--- TONALLY RELEVANT ALTERNATIVES ---\n{tonal_text}")
+
+    if gap_chunks:
+        gap_text = _format_manual_section(gap_chunks)
+        if gap_text:
+            parts.append(f"--- GAP-FILLING CANDIDATES ---\n{gap_text}")
+
+    return "\n\n".join(parts) if parts else "(no manual descriptions available)"
 
 
 def build_component_schema_context(
@@ -139,9 +186,80 @@ def build_cabinet_lookup_context(amp_cabinet_lookup: dict[str, dict]) -> str:
     return "\n".join(lines) if lines else "(no cabinet lookup available)"
 
 
+# CRP integer-enum parameter IDs that must not be clamped to [0, 1].
+_CRP_INTEGER_PARAMS: frozenset[str] = frozenset(
+    {f"{prefix}{i}" for prefix in ("Cab", "Mic", "MPos") for i in range(1, 9)}
+)
+
+# Valid ranges for CRP cabinet/mic/position integer enums.
+_CRP_CAB_MAX = 28
+_CRP_MIC_MAX = 4
+_CRP_MPOS_MAX = 2
+
+
+def build_crp_reference_context(chain_type: str) -> str:
+    """Return CRP enum tables for FULL_PRODUCTION chains, empty for AMP_ONLY.
+
+    For AMP_ONLY chains, Control Room Pro is not used — the refinement
+    rules direct the LLM to Matched Cabinet Pro instead.  Omitting the
+    CRP tables saves ~400 tokens per AMP_ONLY call.
+
+    Args:
+        chain_type: ``"FULL_PRODUCTION"`` or ``"AMP_ONLY"``.
+
+    Returns:
+        Formatted CRP enum tables, or a brief note explaining their absence.
+    """
+    if chain_type == "FULL_PRODUCTION":
+        return format_crp_reference()
+    return "(Control Room Pro not used for AMP_ONLY chains — use Matched Cabinet Pro instead)"
+
+
+def _validate_crp_params(components: list[dict]) -> None:
+    """Log warnings for missing or out-of-range CRP Cab1/Mic1/MPos1 values.
+
+    Does NOT override the LLM's choices — it selected them based on the
+    tonal target's named cabinet and microphone suggestions.  This is a
+    diagnostic safety net only.
+    """
+    _log = logging.getLogger(__name__)
+    for comp in components:
+        if comp.get("component_name") not in _CONTROL_ROOM_NAMES:
+            continue
+        params = comp.get("parameters", {})
+
+        cab1 = params.get("Cab1")
+        if cab1 is None:
+            _log.warning("Control Room Pro missing Cab1 — cabinet selection may be wrong")
+        elif not (0 <= int(cab1) <= _CRP_CAB_MAX):
+            _log.warning("Control Room Pro Cab1=%s out of range 0-%d", cab1, _CRP_CAB_MAX)
+
+        mic1 = params.get("Mic1")
+        if mic1 is None:
+            _log.warning("Control Room Pro missing Mic1 — microphone selection may be wrong")
+        elif not (0 <= int(mic1) <= _CRP_MIC_MAX):
+            _log.warning("Control Room Pro Mic1=%s out of range 0-%d", mic1, _CRP_MIC_MAX)
+
+        mpos1 = params.get("MPos1")
+        if mpos1 is None:
+            _log.warning("Control Room Pro missing MPos1 — mic position may be wrong")
+        elif not (0 <= int(mpos1) <= _CRP_MPOS_MAX):
+            _log.warning("Control Room Pro MPos1=%s out of range 0-%d", mpos1, _CRP_MPOS_MAX)
+
+        # Cast float → int for integer enum params
+        for key in list(params):
+            if key in _CRP_INTEGER_PARAMS and isinstance(params[key], float):
+                params[key] = int(params[key])
+
+
 # ---------------------------------------------------------------------------
 # Post-processing
 # ---------------------------------------------------------------------------
+
+
+def _has_control_room(components: list[dict]) -> bool:
+    """Return True if any component is a Control Room variant."""
+    return any(c.get("component_name", "") in _CONTROL_ROOM_NAMES for c in components)
 
 
 def _find_amp_name(components: list[dict], amp_cabinet_lookup: dict[str, dict]) -> str | None:
@@ -362,21 +480,34 @@ def map_components(
         signal_chain, exclude_names=exemplar_component_names
     )
 
-    # 5. Combine manual results
-    all_manual = manual_for_exemplars + manual_for_additions
+    # 4b. Tonal similarity search — swap candidates across all categories
+    manual_for_tonal = search_manual_by_tonal_target(
+        signal_chain,
+        top_n=5,
+        exclude_names=exemplar_component_names,
+    )
 
-    # 6. Collect all component names that need schema entries
+    # 5. Collect all component names that need schema entries
     all_component_names = list(
         exemplar_component_names
         | {r["component_name"] for r in manual_for_additions}
+        | {r["component_name"] for r in manual_for_tonal}
         | {_MATCHED_CABINET_PRO_NAME}
+        | _CONTROL_ROOM_NAMES
     )
 
-    # 7. Build prompt — inject compact tonal target instead of raw text
+    # 6. Build prompt — inject compact tonal target instead of raw text
+    chain_type = parsed.chain_type or "AMP_ONLY"
     tonal_target = format_tonal_target(parsed)
-    manual_context = build_manual_reference_context(all_manual)
+    manual_context = build_manual_reference_context(
+        exemplar_chunks=manual_for_exemplars,
+        tonal_chunks=manual_for_tonal,
+        gap_chunks=manual_for_additions,
+    )
     schema_context = build_component_schema_context(all_component_names, schema)
     cabinet_context = build_cabinet_lookup_context(amp_cabinet_lookup)
+    crp_context = build_crp_reference_context(chain_type)
+    tonal_descriptor_context = format_tonal_descriptors(chain_type)
 
     prompt = (
         EXEMPLAR_REFINEMENT_PROMPT.replace("{{SIGNAL_CHAIN}}", tonal_target)
@@ -384,6 +515,8 @@ def map_components(
         .replace("{{MANUAL_REFERENCE}}", manual_context)
         .replace("{{COMPONENT_SCHEMA}}", schema_context)
         .replace("{{CABINET_LOOKUP}}", cabinet_context)
+        .replace("{{CRP_REFERENCE}}", crp_context)
+        .replace("{{TONAL_DESCRIPTORS}}", tonal_descriptor_context)
     )
 
     # 8. Phase 2 LLM call
@@ -445,24 +578,31 @@ def map_components(
 
     components = fill_defaults(components, schema)
 
-    # 9b. Enforce cabinet — three-tier param layering:
-    #   schema defaults → exemplar factory data → LLM explicit → Cab lookup
-    base_exemplar = components[0].get("base_exemplar", "") if components else ""
-    exemplar_cab_params = _extract_exemplar_cabinet_params(exemplars)
-    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
-    amp_name = _find_amp_name(components, amp_cabinet_lookup)
-    cabinet = _make_matched_cabinet_pro(
-        amp_name,
-        amp_cabinet_lookup,
-        schema,
-        base_exemplar,
-        exemplar_cab_params,
-        llm_cab_params,
-    )
-    amp_idx = _find_amp_index(components, amp_cabinet_lookup)
-    if amp_idx is not None:
-        components.insert(amp_idx + 1, cabinet)
+    # 9b. Cabinet enforcement.
+    # If the LLM emitted a Control Room / Control Room Pro, it serves as
+    # the cabinet solution — skip Matched Cabinet Pro injection entirely.
+    # Otherwise, strip any raw cabinet the LLM emitted and enforce
+    # Matched Cabinet Pro with three-tier parameter layering.
+    if not _has_control_room(components):
+        base_exemplar = components[0].get("base_exemplar", "") if components else ""
+        exemplar_cab_params = _extract_exemplar_cabinet_params(exemplars)
+        components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+        amp_name = _find_amp_name(components, amp_cabinet_lookup)
+        cabinet = _make_matched_cabinet_pro(
+            amp_name,
+            amp_cabinet_lookup,
+            schema,
+            base_exemplar,
+            exemplar_cab_params,
+            llm_cab_params,
+        )
+        amp_idx = _find_amp_index(components, amp_cabinet_lookup)
+        if amp_idx is not None:
+            components.insert(amp_idx + 1, cabinet)
+        else:
+            components.append(cabinet)
     else:
-        components.append(cabinet)
+        # CRP is present — validate Cab1/Mic1/MPos1 and cast to int.
+        _validate_crp_params(components)
 
     return components

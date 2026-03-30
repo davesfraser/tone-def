@@ -25,21 +25,56 @@ Base this on audible characteristics described in the query or known from the
 referenced recording or artist.
 
 MODIFIER MAPPING
-If the query includes descriptive modifiers beyond the reference (e.g. "grittier",
-"more airy", "less compressed"), identify what each modifier targets in the sonic
-profile and how it should shift the signal chain:
+If the query includes a "Tonal modifiers:" section or descriptive modifiers
+anywhere in the text (e.g. "grittier", "more airy", "less compressed"),
+identify what each modifier targets and how it should shift the signal chain.
 
-* Gain modifiers (grittier, cleaner, more aggressive) → adjust drive staging,
-  amp volume, or overdrive pedal gain
-* Frequency modifiers (darker, brighter, more airy, warmer) → adjust amp tone
-  controls, EQ, or pickup selection
-* Dynamic modifiers (more compressed, more open, punchier) → adjust compression
-  or amp headroom
-* Spatial modifiers (more ambient, drier, bigger) → adjust reverb decay, delay
-  mix, or remove spatial units
+Modifiers are organised by signal chain zone and group:
 
-Use both stages to guide the signal chain design. Do not include this analysis
-in the output.
+PRE-AMP / PEDALS:
+* Gain Amount (cleaner, grittier, fuzzier) → adjust drive staging, overdrive
+  pedal gain, or add/remove fuzz
+* Drive Character (smoother, more aggressive, sparkly) → adjust clipping
+  character, tone knob, or drive voicing
+* Low End (tighter) → cut bass before the amp, add low-cut to overdrive
+
+AMPLIFIER:
+* Tone Balance (brighter, darker, warmer, chimey) → adjust treble, presence,
+  and bass controls on the amp
+* Mid Range (scooped, mid-forward, honky) → adjust mid control or parametric EQ
+  for mid emphasis or cut
+* Gain Behavior (crunchy, liquid, glassy, raw) → adjust amp gain character,
+  master volume, and EQ voicing
+* Power Response (saggy, stiff) → adjust power amp bias, feel, and transient
+  response
+
+CABINET:
+* Cabinet Voicing (tight, loose) → choose closed-back vs open-back cabinet
+* Speaker Character (woody, papery, boxy, thuddy) → choose speaker type and
+  enclosure size
+
+ROOM & MICROPHONE:
+* Mic Placement (close-miked, present, distant) → adjust mic distance and
+  position in Control Room Pro
+* Room Character (intimate, roomy, live-room, dead-room, air) → adjust CRP
+  room size, reflections, and room mix
+* Mic Tone (silky, aggressive, smooth, detailed) → choose mic type and
+  position for tonal character
+
+EFFECTS & SPACE:
+* Spatial Amount (more ambient, drier) → adjust reverb/delay mix or
+  remove spatial effects
+* Spatial Character (bigger, washy, lush, shimmery, slapback) → adjust reverb
+  type, decay, delay time, and modulation
+* Signal Processing (pristine, lo-fi, tape-saturated) → adjust signal quality,
+  add degradation or tape character
+* Dynamics (more compressed, more open, punchier) → adjust compression ratio,
+  threshold, and attack
+
+When multiple modifiers are present, apply them all — they target different
+dimensions of the signal chain and do not conflict. Use both the reference
+analysis and modifiers to guide the signal chain design. Do not include this
+analysis in the output.
 </sonic_analysis>
 
 <chain_type_detection>
@@ -339,7 +374,7 @@ Genres: [comma-separated values from controlled vocabulary]
 
 EXEMPLAR_REFINEMENT_PROMPT = """
 <task>
-You are the preset builder for the ToneDef Guitar Rig 7 preset generator.
+You are the preset designer for the ToneDef Guitar Rig 7 preset generator.
 
 You have been given:
 1. A tonal target — a human-readable signal chain recommendation describing the
@@ -349,9 +384,10 @@ You have been given:
 3. Manual descriptions explaining what each component and its parameters do.
 4. Parameter schemas with valid param_id keys and default values.
 
-Your job: select the best exemplar preset as a starting point, then **modify it**
-to match the tonal target. This is an edit-based approach — you are adjusting an
-existing, working preset, not building one from scratch.
+Your job: design the optimal Guitar Rig 7 signal chain that faithfully
+reproduces the tonal target. Use the exemplar presets as a **palette of
+proven components and parameter ranges** — draw from them freely, but your
+output must serve the tonal target, not merely preserve an exemplar.
 
 Return a JSON array — nothing else. No preamble, no explanation, no markdown fences.
 </task>
@@ -362,18 +398,29 @@ Return a JSON array — nothing else. No preamble, no explanation, no markdown f
 
 <exemplar_presets>
 Real Guitar Rig 7 factory presets retrieved by tonal similarity. Each preset
-shows its tags, components, and all parameter values. These are proven-good
-starting points — prefer preserving their structure and adjusting values over
-replacing components.
+shows its tags, components, and all parameter values. Use these as a reference
+palette — borrow components, parameter ranges, and signal chain patterns that
+serve the tonal target.
 
 {{EXEMPLAR_PRESETS}}
 </exemplar_presets>
 
 <manual_reference>
-Descriptions from the Guitar Rig 7 user manual for relevant components. Use
-these to understand what each parameter controls so you can make informed
-adjustments. Each entry explains the component's sonic character and what its
-knobs do.
+Descriptions from the Guitar Rig 7 user manual for relevant components,
+organised in three sections:
+
+COMPONENTS FROM EXEMPLARS — documentation for components already present
+in the exemplar presets. Use these to understand what each parameter
+controls so you can make informed adjustments.
+
+TONALLY RELEVANT ALTERNATIVES — components whose manual descriptions
+best match the tonal target, regardless of category. These are swap
+candidates when the tonal target calls for a different variant than what
+the exemplars provide (e.g. a Marshall amp when the exemplar has a Vox).
+
+GAP-FILLING CANDIDATES — components from effect categories the exemplars
+may lack. Use these when the tonal target requires an effect type not
+present in any exemplar.
 
 {{MANUAL_REFERENCE}}
 </manual_reference>
@@ -397,10 +444,20 @@ Format: amp_name | cabinet_component_name | cabinet_component_id | cab_value
 {{CABINET_LOOKUP}}
 </cabinet_lookup>
 
+<crp_reference>
+Control Room Pro cabinet, microphone, and mic-position integer enums.
+When emitting Control Room Pro, use these tables to convert the tonal
+target's named cabinet and microphone suggestions into the correct
+integer values for Cab1, Mic1, and MPos1.
+
+{{CRP_REFERENCE}}
+</crp_reference>
+
 <parameter_conversion>
 The tonal target uses human-readable settings that must be converted to
-normalised 0.0-1.0 floats for all parameters except Cab (which is an integer
-enum — use the value from cabinet_lookup verbatim).
+normalised 0.0-1.0 floats for all parameters except Cab, Cab1-Cab8,
+Mic1-Mic8, and MPos1-MPos8 (which are integer enums — use the values
+from cabinet_lookup / crp_reference verbatim).
 
 CLOCK POSITIONS
 A clock face runs 7 o'clock (fully counter-clockwise = 0.0) to 5 o'clock
@@ -416,12 +473,7 @@ For ranges like "2-3 o'clock", use the midpoint (0.75).
 NAMED POSITIONS / SWITCHES:  0.0 = off/minimum, 1.0 = on/maximum.
 
 TONAL DESCRIPTORS (when adjusting from exemplar values):
-  "brighter"  → increase treble/presence params by 0.1-0.2
-  "warmer"    → decrease treble params by 0.1-0.2, bump mid/bass
-  "grittier"  → increase drive/gain by 0.1-0.2
-  "cleaner"   → decrease drive/gain by 0.1-0.2
-  "more ambient" → increase reverb/delay mix by 0.1-0.2
-  "drier"     → decrease reverb/delay mix or remove the effect
+{{TONAL_DESCRIPTORS}}
 
 MISSING PARAMETERS
 If a parameter is not mentioned in the tonal target and has no contextual
@@ -431,32 +483,52 @@ added, use default_value from the component schema.
 
 <refinement_rules>
 1. SELECT a base exemplar — pick the preset whose overall tonal character
-   (gain structure, genre, effects) best matches the tonal target.
-2. ADJUST parameter values on existing components to better match the tonal
-   target. Use the manual_reference to understand what each parameter does.
-3. SWAP a component for a different one of the same type when the tonal
+   (gain structure, genre, effects) best matches the tonal target. You will
+   reference it as base_exemplar in the output, but you are not limited to
+   its components.
+2. DESIGN the complete signal chain the tonal target requires. Include every
+   component needed for the described tone — pre-amp effects, amp, cabinet,
+   and any post-cabinet processing (recording chain, studio mixing).
+3. BORROW components and parameter values from exemplars when they fit the
+   tonal target. Exemplar values are proven-good starting points for
+   parameters — prefer them over raw defaults when the component matches.
+4. SWAP a component for a different one of the same type when the tonal
    target clearly calls for a different variant (e.g. swap a Fender-style
    amp for a Marshall-style one). Use manual_reference to understand the
    replacement's parameters and set them appropriately.
-4. ADD components the exemplar lacks if the tonal target requires them
-   (e.g. add a delay pedal the exemplar doesn't have). Use the component
-   schema for parameter defaults and manual_reference for guidance.
-5. REMOVE components that contradict the tonal target (e.g. remove a chorus
-   if the target specifies a dry tone).
-6. PRESERVE structure — the exemplar was a working preset. Do not add
-   components just because they seem useful. Do not remove components
-   unless the tonal target actively conflicts with them.
-7. CABINET — always emit exactly one Matched Cabinet Pro component after
-   the amp. Post-cabinet effects (recording chain, studio processing)
-   follow the cabinet. Use the cabinet_lookup table: find the amp in
-   your output, look up its cab_value, and emit a Matched Cabinet Pro
-   (156000) with that Cab value. All other Matched Cabinet Pro parameters
-   should use the exemplar's values if it had one, otherwise use defaults
-   from the schema. The Cab parameter is an integer enum (not a
-   normalised float) — emit the cab_value from the lookup table as-is.
+5. ADD components the tonal target requires beyond what the exemplar
+   provides. For FULL_PRODUCTION chains, this typically includes
+   post-cabinet processing — Control Room Pro (119000) for cabinet/room/mic
+   simulation, Solid EQ (161000) or EQ Parametric (60000) for tonal
+   shaping, Solid Bus Comp (159000) or Tube Compressor (58000) for
+   dynamics, and spatial effects (delay, reverb). Use the component schema
+   for parameter defaults and manual_reference for guidance.
+6. REMOVE components only when they contradict the tonal target (e.g.
+   remove a chorus if the target specifies a dry tone). Do not remove
+   effects that complement the described tone.
+7. CABINET — emit exactly one cabinet solution after the amp:
+   - **Control Room Pro (119000)** — preferred for FULL_PRODUCTION chains.
+     It combines cabinet simulation, room modelling, and microphone
+     placement in one component. When using Control Room Pro, do NOT also
+     emit Matched Cabinet Pro — Control Room Pro replaces it entirely.
+     Use the tonal target's cabinet and microphone suggestions together
+     with the crp_reference tables to set Cab1, Mic1, and MPos1 to the
+     correct integer values. These are integer enums — emit them as-is.
+   - **Matched Cabinet Pro (156000)** — use for AMP_ONLY chains or when
+     the tonal target does not call for studio room/mic simulation. When
+     using Matched Cabinet Pro, look up the amp in the cabinet_lookup
+     table and set the Cab parameter to the cab_value from the table.
+     The Cab parameter is an integer enum — emit it as-is.
+   Post-cabinet effects (recording chain, studio processing) follow the
+   cabinet component.
 8. ORDER — preserve signal chain order: pre-amp effects → amp → cabinet
    → post-cabinet effects (recording chain, studio processing).
 9. Do not include routing utilities (Split, CrossOver, Container).
+10. CHAIN COMPLETENESS — match the scope of the tonal target:
+    - AMP_ONLY targets: pre-amp effects → amp → cabinet. Keep it focused.
+    - FULL_PRODUCTION targets: build the full recording chain the target
+      describes. A typical FULL_PRODUCTION chain includes 6-12 components
+      spanning pedals, amp, cabinet, and studio/recording processing.
 </refinement_rules>
 
 <output_schema>
@@ -494,44 +566,109 @@ Constraints:
   effects (recording chain, studio processing) follow it.
 </output_schema>
 
-<example>
-Tonal target mentions a high-gain, aggressive rock tone — Marshall-style amp,
-heavy overdrive, and tight low end.
+<examples>
+EXAMPLE 1 — FULL_PRODUCTION (specific recording, complete studio chain)
 
-Base exemplar "800 Rocks" has: Tube Screamer (73000), Lead 800 (57000),
-Matched Cabinet Pro (156000).
+Tonal target describes a Stevie Ray Vaughan "Texas Flood" tone —
+FULL_PRODUCTION chain with Tube Screamer into a Fender-style amp, studio
+compression, EQ, and ambient reverb from the recording.
 
-Adjustments needed: boost drive on the Tube Screamer, increase amp gain,
-tighten the low end. No components need swapping or adding.
+Base exemplar "AA Complete Rig Hot-Plexi" is the closest tonal match.
+The design borrows components from multiple exemplars and adds studio
+processing the tonal target requires.
 
 Output:
 [
   {
     "component_name": "Tube Screamer",
     "component_id": 73000,
-    "base_exemplar": "800 Rocks",
+    "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "adjusted",
     "confidence": "inferred",
-    "parameters": {"Pwr": 1.0, "Drv": 0.75, "Ton": 0.6, "Vol": 0.65}
+    "parameters": {"Pwr": 1.0, "Drv": 0.45, "Ton": 0.55, "Vol": 0.7}
   },
   {
-    "component_name": "Lead 800",
-    "component_id": 57000,
-    "base_exemplar": "800 Rocks",
-    "modification": "adjusted",
+    "component_name": "Tweed Delight",
+    "component_id": 52000,
+    "base_exemplar": "AA Complete Rig Hot-Plexi",
+    "modification": "swapped",
     "confidence": "inferred",
-    "parameters": {"Pwr": 1.0, "Pr": 0.6, "Tb": 0.65, "Md": 0.7, "Bs": 0.4, "MV": 0.8, "Vol": 0.7, "Br": 0.5, "TSp": 0.45, "TDt": 0.0}
+    "parameters": {"Pwr": 1.0, "Pr": 0.55, "Tb": 0.6, "Md": 0.65, "Bs": 0.5, "MV": 0.75, "Vol": 0.65, "Br": 0.5, "TSp": 0.5, "TDt": 0.0}
+  },
+  {
+    "component_name": "Control Room Pro",
+    "component_id": 119000,
+    "base_exemplar": "AA Complete Rig Hot-Plexi",
+    "modification": "added",
+    "confidence": "estimated",
+    "parameters": {"Pwr": 1.0, "L": 0.0, "v": 0.8, "Cab1": 17, "Mic1": 1, "MPos1": 0, "g1": 0.55, "g2": 0.5, "g3": 0.5, "g4": 0.5, "g5": 0.5, "g6": 0.5, "g7": 0.5, "g8": 0.5, "p1": 0.5, "p2": 0.5, "p3": 0.5, "p4": 0.5}
+  },
+  {
+    "component_name": "Solid EQ",
+    "component_id": 161000,
+    "base_exemplar": "AA Complete Rig Hot-Plexi",
+    "modification": "added",
+    "confidence": "estimated",
+    "parameters": {"Pwr": 1.0, "LF_F": 0.3, "LF_G": 0.55, "LMF_F": 0.35, "LMF_G": 0.52, "LMF_Q": 0.5, "HMF_F": 0.6, "HMF_G": 0.54, "HMF_Q": 0.5, "HF_F": 0.7, "HF_G": 0.56}
+  },
+  {
+    "component_name": "Tube Compressor",
+    "component_id": 58000,
+    "base_exemplar": "AA Complete Rig Hot-Plexi",
+    "modification": "added",
+    "confidence": "estimated",
+    "parameters": {"Pwr": 1.0, "Inp": 0.6, "Att": 0.3, "Rel": 0.5, "Out": 0.65, "Mix": 0.7, "SC": 0.0}
+  },
+  {
+    "component_name": "Studio Reverb",
+    "component_id": 110000,
+    "base_exemplar": "AA Complete Rig Hot-Plexi",
+    "modification": "added",
+    "confidence": "estimated",
+    "parameters": {"Pwr": 1.0, "Mix": 0.2, "Tm": 0.35, "Dmp": 0.5, "Sz": 0.55, "Pre": 0.3, "Col": 0.5}
+  }
+]
+
+Note: Control Room Pro replaces Matched Cabinet Pro for FULL_PRODUCTION —
+it handles cabinet, room, and mic simulation internally. Tweed Delight →
+Cab1=17 (1x12 Tweed) from crp_reference, Mic1=1 (SM57), MPos1=0 (Cap).
+
+
+EXAMPLE 2 — AMP_ONLY (general artist style, focused chain)
+
+Tonal target describes a general clean jazz tone — AMP_ONLY chain with
+a Fender-style amp, light compression, no studio processing needed.
+
+Base exemplar "800 Clean" is the closest tonal match.
+
+Output:
+[
+  {
+    "component_name": "Fast Comp",
+    "component_id": 75000,
+    "base_exemplar": "800 Clean",
+    "modification": "added",
+    "confidence": "estimated",
+    "parameters": {"Pwr": 1.0, "Att": 0.3, "Rel": 0.5, "Thr": 0.6, "Rat": 0.3, "Vol": 0.65}
+  },
+  {
+    "component_name": "Jazz Amp",
+    "component_id": 56000,
+    "base_exemplar": "800 Clean",
+    "modification": "swapped",
+    "confidence": "inferred",
+    "parameters": {"Pwr": 1.0, "Pr": 0.4, "Tb": 0.55, "Md": 0.6, "Bs": 0.5, "MV": 0.5, "Vol": 0.6, "Br": 0.0, "TSp": 0.5, "TDt": 0.0}
   },
   {
     "component_name": "Matched Cabinet Pro",
     "component_id": 156000,
-    "base_exemplar": "800 Rocks",
+    "base_exemplar": "800 Clean",
     "modification": "adjusted",
     "confidence": "documented",
-    "parameters": {"Pwr": 1.0, "MV": 0.45, "c": 0.2, "Cab": 10, "V": 1.0, "st": 1.0}
+    "parameters": {"Pwr": 1.0, "MV": 0.45, "c": 0.2, "Cab": 5, "V": 1.0, "st": 1.0}
   }
 ]
 
-Note: Lead 800 → Cab=10 from the cabinet_lookup table.
-</example>
+Note: Jazz Amp → Cab=5 from the cabinet_lookup table.
+</examples>
 """

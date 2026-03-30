@@ -14,8 +14,10 @@ from tonedef.component_mapper import (
     _find_amp_index,
     _find_amp_name,
     _make_matched_cabinet_pro,
+    _validate_crp_params,
     build_cabinet_lookup_context,
     build_component_schema_context,
+    build_crp_reference_context,
     build_manual_reference_context,
     fill_defaults,
 )
@@ -39,32 +41,58 @@ _MANUAL_RESULTS = [
 
 
 def test_manual_reference_context_includes_names() -> None:
-    result = build_manual_reference_context(_MANUAL_RESULTS)
+    result = build_manual_reference_context(exemplar_chunks=_MANUAL_RESULTS)
     assert "Spring Reverb" in result
     assert "Tweed Delight" in result
 
 
 def test_manual_reference_context_includes_category() -> None:
-    result = build_manual_reference_context(_MANUAL_RESULTS)
+    result = build_manual_reference_context(exemplar_chunks=_MANUAL_RESULTS)
     assert "Reverb" in result
     assert "Amps" in result
 
 
 def test_manual_reference_context_deduplicates() -> None:
     dupes = [*_MANUAL_RESULTS, _MANUAL_RESULTS[0]]
-    result = build_manual_reference_context(dupes)
+    result = build_manual_reference_context(exemplar_chunks=dupes)
     assert result.count("[Spring Reverb]") == 1
 
 
 def test_manual_reference_context_truncates_long_text() -> None:
     long = [{"component_name": "Amp", "category": "Amps", "text": "A" * 800}]
-    result = build_manual_reference_context(long)
+    result = build_manual_reference_context(exemplar_chunks=long)
     assert "..." in result
 
 
 def test_manual_reference_context_empty() -> None:
-    result = build_manual_reference_context([])
+    result = build_manual_reference_context(exemplar_chunks=[])
     assert "no manual" in result.lower()
+
+
+def test_manual_reference_context_three_sections() -> None:
+    tonal = [{"component_name": "Lead 800", "category": "Amps", "text": "Marshall tone."}]
+    gap = [{"component_name": "Tube Comp", "category": "Dynamics", "text": "Compressor."}]
+    result = build_manual_reference_context(
+        exemplar_chunks=_MANUAL_RESULTS,
+        tonal_chunks=tonal,
+        gap_chunks=gap,
+    )
+    assert "COMPONENTS FROM EXEMPLARS" in result
+    assert "TONALLY RELEVANT ALTERNATIVES" in result
+    assert "GAP-FILLING CANDIDATES" in result
+    assert "Lead 800" in result
+    assert "Tube Comp" in result
+
+
+def test_manual_reference_context_omits_empty_sections() -> None:
+    result = build_manual_reference_context(
+        exemplar_chunks=_MANUAL_RESULTS,
+        tonal_chunks=[],
+        gap_chunks=None,
+    )
+    assert "COMPONENTS FROM EXEMPLARS" in result
+    assert "TONALLY RELEVANT" not in result
+    assert "GAP-FILLING" not in result
 
 
 # ---------------------------------------------------------------------------
@@ -668,3 +696,97 @@ def test_cabinet_ordering_with_multiple_post_effects() -> None:
         "Studio Reverb",
         "Solid Buscomp",
     ]
+
+
+# ---------------------------------------------------------------------------
+# build_crp_reference_context
+# ---------------------------------------------------------------------------
+
+
+def test_crp_reference_context_full_production() -> None:
+    result = build_crp_reference_context("FULL_PRODUCTION")
+    assert isinstance(result, str)
+    assert "CABINETS" in result
+    assert "MICROPHONES" in result
+    assert "MIC POSITIONS" in result
+    assert "DI Box" in result
+    assert "Dyn 57" in result
+
+
+def test_crp_reference_context_amp_only_omits_tables() -> None:
+    result = build_crp_reference_context("AMP_ONLY")
+    assert "CABINETS" not in result
+    assert "Matched Cabinet Pro" in result
+
+
+# ---------------------------------------------------------------------------
+# _validate_crp_params
+# ---------------------------------------------------------------------------
+
+
+def _crp_component(
+    cab1: float | int | None = 8,
+    mic1: float | int | None = 1,
+    mpos1: float | int | None = 0,
+) -> dict:
+    params: dict[str, float | int] = {"Pwr": 1.0, "v": 0.8}
+    if cab1 is not None:
+        params["Cab1"] = cab1
+    if mic1 is not None:
+        params["Mic1"] = mic1
+    if mpos1 is not None:
+        params["MPos1"] = mpos1
+    return {"component_name": "Control Room Pro", "component_id": 119000, "parameters": params}
+
+
+def test_validate_crp_params_casts_float_to_int() -> None:
+    comps = [_crp_component(cab1=8.0, mic1=1.0, mpos1=2.0)]
+    _validate_crp_params(comps)
+    params = comps[0]["parameters"]
+    assert isinstance(params["Cab1"], int)
+    assert isinstance(params["Mic1"], int)
+    assert isinstance(params["MPos1"], int)
+    assert params["Cab1"] == 8
+    assert params["Mic1"] == 1
+    assert params["MPos1"] == 2
+
+
+def test_validate_crp_params_valid_range_no_warning(caplog: pytest.LogCaptureFixture) -> None:
+    comps = [_crp_component(cab1=17, mic1=1, mpos1=0)]
+    with caplog.at_level("WARNING"):
+        _validate_crp_params(comps)
+    assert caplog.text == ""
+
+
+def test_validate_crp_params_missing_cab1_warns(caplog: pytest.LogCaptureFixture) -> None:
+    comps = [_crp_component(cab1=None)]
+    with caplog.at_level("WARNING"):
+        _validate_crp_params(comps)
+    assert "missing Cab1" in caplog.text
+
+
+def test_validate_crp_params_missing_mic1_warns(caplog: pytest.LogCaptureFixture) -> None:
+    comps = [_crp_component(mic1=None)]
+    with caplog.at_level("WARNING"):
+        _validate_crp_params(comps)
+    assert "missing Mic1" in caplog.text
+
+
+def test_validate_crp_params_missing_mpos1_warns(caplog: pytest.LogCaptureFixture) -> None:
+    comps = [_crp_component(mpos1=None)]
+    with caplog.at_level("WARNING"):
+        _validate_crp_params(comps)
+    assert "missing MPos1" in caplog.text
+
+
+def test_validate_crp_params_out_of_range_cab1_warns(caplog: pytest.LogCaptureFixture) -> None:
+    comps = [_crp_component(cab1=30)]
+    with caplog.at_level("WARNING"):
+        _validate_crp_params(comps)
+    assert "out of range" in caplog.text
+
+
+def test_validate_crp_params_skips_non_crp() -> None:
+    """Non-CRP components are ignored by the validator."""
+    comps = [{"component_name": "Tube Screamer", "parameters": {"Drv": 0.5}}]
+    _validate_crp_params(comps)  # should not raise

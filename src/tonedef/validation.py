@@ -14,6 +14,21 @@ from dataclasses import dataclass, field
 from tonedef.models import ComponentOutput, validate_component_against_schema
 from tonedef.signal_chain_parser import ParsedSignalChain
 
+# Component names that serve as a cabinet solution in the signal chain.
+_CABINET_SOLUTION_NAMES: frozenset[str] = frozenset(
+    {
+        "Control Room",
+        "Control Room Pro",
+        "Matched Cabinet Pro",
+    }
+)
+
+
+def _is_cabinet_solution(name: str) -> bool:
+    """Return True if *name* is a cabinet or control room component."""
+    return name in _CABINET_SOLUTION_NAMES or "cabinet" in name.lower()
+
+
 _VALID_CHAIN_TYPES = {"AMP_ONLY", "FULL_PRODUCTION"}
 
 
@@ -212,7 +227,7 @@ def validate_signal_chain_order(
         cname_lower = comp.component_name.lower()
         if cname_lower in amp_names_lower:
             amp_idx = idx
-        if "cabinet" in cname_lower:
+        if _is_cabinet_solution(comp.component_name):
             cab_idx = idx
 
     if amp_idx is None:
@@ -252,7 +267,7 @@ def validate_pre_build(
     names = [c.component_name for c in components]
     ids = [c.component_id for c in components]
 
-    has_cab = any("cabinet" in n.lower() for n in names)
+    has_cab = any(_is_cabinet_solution(n) for n in names)
     if not has_cab:
         result.errors.append("No cabinet component — preset will not load correctly")
 

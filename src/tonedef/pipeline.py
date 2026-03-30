@@ -14,6 +14,23 @@ from tonedef.prompts import SYSTEM_PROMPT
 from tonedef.settings import settings
 
 
+def compose_query(text: str, modifiers: list[str]) -> str:
+    """Assemble a Phase 1 query from user text and tonal modifiers.
+
+    Args:
+        text: The user's tone description.
+        modifiers: List of selected tonal descriptor terms (may be empty).
+
+    Returns:
+        Combined query string.  If *modifiers* is empty the original
+        *text* is returned unchanged.
+    """
+    if not modifiers:
+        return text
+    modifier_str = ", ".join(modifiers)
+    return f"{text}\n\nTonal modifiers: {modifier_str}"
+
+
 def generate_signal_chain(
     query: str,
     client: anthropic.Anthropic,
