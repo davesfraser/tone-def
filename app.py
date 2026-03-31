@@ -11,7 +11,12 @@ from pathlib import Path
 import anthropic
 import streamlit as st
 
-from tonedef.component_mapper import load_amp_cabinet_lookup, load_schema, map_components
+from tonedef.component_mapper import (
+    load_amp_cabinet_lookup,
+    load_annotations,
+    load_schema,
+    map_components,
+)
 from tonedef.models import ComponentOutput
 from tonedef.ngrr_builder import transplant_preset
 from tonedef.paths import DATA_EXTERNAL
@@ -20,6 +25,7 @@ from tonedef.settings import settings
 from tonedef.signal_chain_parser import ParsedSignalChain, parse_signal_chain
 from tonedef.tonal_vocab import get_all_selected_terms, get_ui_groups, load_descriptor_meta
 from tonedef.validation import (
+    validate_parameter_intent,
     validate_phase1,
     validate_phase2,
     validate_pre_build,
@@ -499,10 +505,16 @@ if _has_results:
                 _validated.append(ComponentOutput.model_validate(_c))
         if _validated:
             _schema = load_schema()
+            _annotations = load_annotations()
             _p2v = validate_phase2(_validated, _schema)
             _order_v = validate_signal_chain_order(_validated, load_amp_cabinet_lookup())
             _pre_v = validate_pre_build(_validated)
-            _all_v = _p2v.merge(_order_v).merge(_pre_v)
+            _intent_v = validate_parameter_intent(
+                _validated,
+                _annotations,
+                st.session_state.signal_chain_raw or "",
+            )
+            _all_v = _p2v.merge(_order_v).merge(_pre_v).merge(_intent_v)
             for _e in _all_v.errors:
                 st.error(_e, icon="✗")
             for _w in _all_v.warnings:

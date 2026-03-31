@@ -9,6 +9,7 @@ Callers decide how to surface the results (callouts, warnings, logs).
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from tonedef.models import ComponentOutput, validate_component_against_schema
@@ -281,5 +282,114 @@ def validate_pre_build(
         if cid in seen_ids:
             result.warnings.append(f"Duplicate component detected (ID {cid})")
         seen_ids.add(cid)
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Parameter intent validation
+# ---------------------------------------------------------------------------
+
+# Maps annotation boundary keywords to tonal-target patterns that indicate
+# the feature should be active.  Each entry is:
+#   (param_name_pattern, [tonal_target_keywords])
+# These are checked when a parameter has boundary "0.0 = ..." AND value == 0.0.
+_INTENT_KEYWORDS: dict[str, list[str]] = {
+    "hp freq": [
+        "high-pass",
+        "high pass",
+        "highpass",
+        "hpf",
+        "hp filter",
+        "low cut",
+        "low-cut",
+        "rumble",
+        "remove low",
+    ],
+    "lp freq": [
+        "low-pass",
+        "low pass",
+        "lowpass",
+        "lpf",
+        "lp filter",
+        "high cut",
+        "high-cut",
+        "roll off",
+        "roll-off",
+        "bandwidth",
+        "bandwidth-limit",
+    ],
+}
+
+
+def validate_parameter_intent(
+    components: list[ComponentOutput],
+    annotations: dict[str, dict[str, dict]],
+    tonal_target: str,
+) -> ValidationResult:
+    """Check for parameters that are off but the tonal target implies they should be active.
+
+    Scans the tonal target text for keywords associated with features that
+    have an annotated "0.0 = off/disabled" boundary.  When such a parameter
+    is found at 0.0, a warning is emitted.
+
+    This deliberately returns warnings (not errors) — intent detection is
+    heuristic and should not block the build.
+
+    Args:
+        components: Phase 2 component list.
+        annotations: Output of :func:`~tonedef.component_mapper.load_annotations`.
+        tonal_target: The compact tonal target string from Phase 1 (or the
+            raw signal chain text).
+
+    Returns:
+        ``ValidationResult`` with warnings for off-when-should-be-on params.
+    """
+    result = ValidationResult()
+
+    if not annotations or not tonal_target:
+        return result
+
+    target_lower = tonal_target.lower()
+
+    for comp in components:
+        comp_anns = annotations.get(comp.component_name, {})
+        if not comp_anns:
+            continue
+
+        for pid, value in comp.parameters.items():
+            ann = comp_anns.get(pid)
+            if ann is None:
+                continue
+
+            boundary = ann.get("boundary", "")
+            if not boundary:
+                continue
+
+            # Only check "0.0 = off/disabled/switched off" boundaries
+            if not re.match(
+                r"0\.0\s*=\s*(?:is\s+)?(?:off|disabled|switched\s+off|bypassed)",
+                boundary,
+                re.IGNORECASE,
+            ):
+                continue
+
+            # Is the parameter actually at 0.0?
+            if float(value) != 0.0:
+                continue
+
+            # Check if tonal target mentions this feature
+            pname_lower = ann.get("param_name", pid).lower()
+
+            # Use explicit keyword lists if available, else fall back to param name
+            keywords = _INTENT_KEYWORDS.get(pname_lower, [pname_lower])
+            for kw in keywords:
+                if kw in target_lower:
+                    display_name = ann.get("param_name", pid)
+                    result.warnings.append(
+                        f"{comp.component_name} {display_name} is off "
+                        f'but the tone description mentions "{kw}"'
+                    )
+                    break
 
     return result

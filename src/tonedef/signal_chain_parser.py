@@ -242,10 +242,16 @@ def format_tonal_target(parsed: ParsedSignalChain) -> str:
 
     Produces a minimal string containing only the information the Phase 2
     LLM needs for component mapping: chain type, unit names with types and
-    GR equivalents, parameter name/value pairs, and tags.
+    GR equivalents, parameter name/value pairs with their explanations,
+    and tags.
 
-    Strips all decorative formatting (arrows, separators, provenance labels,
-    parameter explanations, prose sections, confidence).
+    Parameter explanations are preserved because they carry critical tonal
+    intent (e.g. "rolls off high-frequency content above what the disc
+    would pass") that the Phase 2 LLM needs to set parameter values
+    correctly.
+
+    Strips decorative formatting (arrows, separators, provenance labels,
+    prose sections, confidence).
 
     Args:
         parsed: A fully parsed Phase 1 output.
@@ -264,7 +270,10 @@ def format_tonal_target(parsed: ParsedSignalChain) -> str:
             gr = f" → (Guitar Rig: {unit.gr_equivalent})" if unit.gr_equivalent else ""
             lines.append(f"  [{unit.name} — {unit.unit_type}]{gr}")
             for param in unit.parameters:
-                lines.append(f"    {param.name}: {param.value}")
+                if param.explanation:
+                    lines.append(f"    {param.name}: {param.value} — {param.explanation}")
+                else:
+                    lines.append(f"    {param.name}: {param.value}")
 
     if parsed.tags_characters or parsed.tags_genres:
         lines.append("")

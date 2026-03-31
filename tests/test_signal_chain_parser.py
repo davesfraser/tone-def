@@ -318,9 +318,9 @@ class TestFormatTonalTargetFullProduction:
         assert "INFERRED" not in output
         assert "ESTIMATED" not in output
 
-    def test_excludes_explanations(self, output: str) -> None:
-        assert "└─" not in output
-        assert "rhythmic pattern" not in output
+    def test_includes_explanations(self, output: str) -> None:
+        assert "└─" not in output  # decorative prefix stripped
+        assert "rhythmic pattern" in output  # explanation text preserved
 
     def test_excludes_arrows(self, output: str) -> None:
         assert "↓" not in output
@@ -358,9 +358,9 @@ class TestFormatTonalTargetAmpOnly:
         assert "DOCUMENTED" not in output
         assert "INFERRED" not in output
 
-    def test_excludes_explanations(self, output: str) -> None:
-        assert "└─" not in output
-        assert "Pushes the amp" not in output
+    def test_includes_explanations(self, output: str) -> None:
+        assert "└─" not in output  # decorative prefix stripped
+        assert "Pushes the amp" in output  # explanation text preserved
 
 
 class TestFormatTonalTargetEmpty:

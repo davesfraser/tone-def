@@ -41,6 +41,7 @@ from tonedef.tonal_vocab import format_tonal_descriptors
 
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _AMP_CABINET_LOOKUP_PATH = DATA_PROCESSED / "amp_cabinet_lookup.json"
+_ANNOTATIONS_PATH = DATA_PROCESSED / "parameter_annotations.json"
 
 _MATCHED_CABINET_PRO_ID = 156000
 _MATCHED_CABINET_PRO_NAME = "Matched Cabinet Pro"
@@ -72,17 +73,32 @@ def load_amp_cabinet_lookup() -> dict[str, dict]:
         return json.load(f)
 
 
+def load_annotations() -> dict[str, dict[str, dict]]:
+    """Load parameter_annotations.json as a nested dict.
+
+    Returns:
+        ``{component_name: {param_id: {param_name, description?, boundary?, ...}}}``.
+        Returns an empty dict if the file does not exist (graceful fallback).
+    """
+    if not _ANNOTATIONS_PATH.exists():
+        return {}
+    with open(_ANNOTATIONS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
 # ---------------------------------------------------------------------------
 # Prompt context builders
 # ---------------------------------------------------------------------------
 
 
-def _format_manual_section(manual_results: list[dict], max_chars: int = 600) -> str:
+def _format_manual_section(manual_results: list[dict]) -> str:
     """Format a list of manual chunks into deduplicated text blocks.
+
+    Full component text is included — manual chunks are already scoped
+    per component and the Phase 2 context window can accommodate them.
 
     Args:
         manual_results: List of dicts with component_name, category, text.
-        max_chars: Maximum characters per component description.
 
     Returns:
         Formatted text, or empty string if no results.
@@ -96,10 +112,7 @@ def _format_manual_section(manual_results: list[dict], max_chars: int = 600) -> 
         seen.add(name)
         category = r.get("category", "")
         text = r.get("text", "")
-        trimmed = text[:max_chars].rstrip()
-        if len(text) > max_chars:
-            trimmed += " ..."
-        sections.append(f"[{name}] ({category})\n{trimmed}")
+        sections.append(f"[{name}] ({category})\n{text}")
     return "\n\n".join(sections)
 
 
@@ -142,28 +155,59 @@ def build_manual_reference_context(
 def build_component_schema_context(
     component_names: list[str],
     schema: dict,
+    annotations: dict[str, dict[str, dict]] | None = None,
 ) -> str:
     """Format parameter definitions for candidate components.
+
+    Each parameter line includes observed factory-preset stats and, when
+    available, a brief description and boundary note from the parameter
+    annotations.  This gives the Phase 2 LLM awareness of real-world
+    ranges and critical off-boundary semantics (e.g. ``0.0 = filter off``).
 
     Args:
         component_names: List of component names to include.
         schema: Parsed component_schema.json.
+        annotations: Output of :func:`load_annotations`.  ``None`` is
+            treated as empty (graceful fallback).
 
     Returns:
-        Formatted string for {{COMPONENT_SCHEMA}} injection.
+        Formatted string for ``{{COMPONENT_SCHEMA}}`` injection.
     """
     if not component_names:
         return "(no schema available)"
+    if annotations is None:
+        annotations = {}
+
     sections = []
     for name in component_names:
         if name not in schema:
             continue
         entry = schema[name]
         lines = [f"[{name}] (component_id: {entry['component_id']})"]
+        comp_anns = annotations.get(name, {})
         for param in entry.get("parameters", []):
-            lines.append(
-                f"  {param['param_id']} | {param['param_name']} | default: {param['default_value']}"
+            pid = param["param_id"]
+            pname = param["param_name"]
+            default = param["default_value"]
+            stats = param.get("stats", {})
+            lo = stats.get("min", 0.0)
+            hi = stats.get("max", 1.0)
+            median = stats.get("median", default)
+
+            line = (
+                f"  {pid} | {pname} | default: {default} | range: [{lo}, {hi}] | median: {median}"
             )
+
+            ann = comp_anns.get(pid, {})
+            suffix_parts: list[str] = []
+            if "description" in ann:
+                suffix_parts.append(ann["description"])
+            if "boundary" in ann:
+                suffix_parts.append(ann["boundary"])
+            if suffix_parts:
+                line += " | " + "; ".join(suffix_parts)
+
+            lines.append(line)
         sections.append("\n".join(lines))
     return "\n\n".join(sections) if sections else "(no schema available)"
 
@@ -460,6 +504,7 @@ def map_components(
     """
     schema = load_schema()
     amp_cabinet_lookup = load_amp_cabinet_lookup()
+    annotations = load_annotations()
 
     # Pre-extract tags and component names from the already-parsed output
     pre_tags = parsed.tags_characters + parsed.tags_genres
@@ -507,7 +552,7 @@ def map_components(
         tonal_chunks=manual_for_tonal,
         gap_chunks=manual_for_additions,
     )
-    schema_context = build_component_schema_context(all_component_names, schema)
+    schema_context = build_component_schema_context(all_component_names, schema, annotations)
     cabinet_context = build_cabinet_lookup_context(amp_cabinet_lookup)
     crp_context = build_crp_reference_context(chain_type)
     tonal_descriptor_context = format_tonal_descriptors(chain_type)

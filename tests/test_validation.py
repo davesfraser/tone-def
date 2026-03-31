@@ -6,6 +6,7 @@ from tonedef.models import ComponentOutput
 from tonedef.signal_chain_parser import ParsedSignalChain, Section, Unit
 from tonedef.validation import (
     ValidationResult,
+    validate_parameter_intent,
     validate_phase1,
     validate_phase2,
     validate_pre_build,
@@ -343,6 +344,82 @@ class TestValidatePhase2:
     def test_param_at_boundary_no_warning(self) -> None:
         comp = _make_comp(parameters={"vb": 0.0})
         result = validate_phase2([comp], _SCHEMA)
+        assert not result.warnings
+
+
+# ---------------------------------------------------------------------------
+# validate_parameter_intent
+# ---------------------------------------------------------------------------
+
+_SOLID_EQ_ANNOTATIONS: dict[str, dict[str, dict]] = {
+    "Solid EQ": {
+        "H12": {
+            "param_name": "HP Freq",
+            "boundary": "0.0 = off",
+        },
+        "H13": {
+            "param_name": "LP Freq",
+            "boundary": "0.0 = off",
+        },
+    },
+}
+
+
+class TestValidateParameterIntent:
+    def test_warns_when_lp_freq_off_but_target_mentions_low_pass(self) -> None:
+        comp = _make_comp(
+            component_name="Solid EQ",
+            component_id=81100,
+            parameters={"H12": 0.5, "H13": 0.0},
+        )
+        result = validate_parameter_intent([comp], _SOLID_EQ_ANNOTATIONS, "warm low-pass filtering")
+        assert len(result.warnings) == 1
+        assert "LP Freq" in result.warnings[0]
+        assert "low-pass" in result.warnings[0]
+
+    def test_warns_when_hp_freq_off_but_target_mentions_high_pass(self) -> None:
+        comp = _make_comp(
+            component_name="Solid EQ",
+            component_id=81100,
+            parameters={"H12": 0.0, "H13": 0.5},
+        )
+        result = validate_parameter_intent(
+            [comp], _SOLID_EQ_ANNOTATIONS, "high-pass filter to remove rumble"
+        )
+        assert len(result.warnings) == 1
+        assert "HP Freq" in result.warnings[0]
+
+    def test_no_warning_when_param_not_at_zero(self) -> None:
+        comp = _make_comp(
+            component_name="Solid EQ",
+            component_id=81100,
+            parameters={"H12": 0.5, "H13": 0.4},
+        )
+        result = validate_parameter_intent([comp], _SOLID_EQ_ANNOTATIONS, "warm low-pass filtering")
+        assert not result.warnings
+
+    def test_no_warning_when_target_has_no_keywords(self) -> None:
+        comp = _make_comp(
+            component_name="Solid EQ",
+            component_id=81100,
+            parameters={"H12": 0.0, "H13": 0.0},
+        )
+        result = validate_parameter_intent([comp], _SOLID_EQ_ANNOTATIONS, "bright clean tone")
+        assert not result.warnings
+
+    def test_empty_annotations_returns_clean(self) -> None:
+        comp = _make_comp()
+        result = validate_parameter_intent([comp], {}, "low-pass filtering")
+        assert result.is_valid
+        assert not result.warnings
+
+    def test_empty_tonal_target_returns_clean(self) -> None:
+        comp = _make_comp(
+            component_name="Solid EQ",
+            component_id=81100,
+            parameters={"H13": 0.0},
+        )
+        result = validate_parameter_intent([comp], _SOLID_EQ_ANNOTATIONS, "")
         assert not result.warnings
 
 

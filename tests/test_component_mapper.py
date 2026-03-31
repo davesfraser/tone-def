@@ -58,10 +58,13 @@ def test_manual_reference_context_deduplicates() -> None:
     assert result.count("[Spring Reverb]") == 1
 
 
-def test_manual_reference_context_truncates_long_text() -> None:
-    long = [{"component_name": "Amp", "category": "Amps", "text": "A" * 800}]
+def test_manual_reference_context_no_truncation() -> None:
+    """Full text is passed through without truncation."""
+    long_text = "A" * 2000
+    long = [{"component_name": "Amp", "category": "Amps", "text": long_text}]
     result = build_manual_reference_context(exemplar_chunks=long)
-    assert "..." in result
+    assert "..." not in result
+    assert long_text in result
 
 
 def test_manual_reference_context_empty() -> None:
@@ -103,9 +106,32 @@ _SCHEMA = {
     "Tweed Delight": {
         "component_id": 79000,
         "parameters": [
-            {"param_id": "vb", "param_name": "Bright", "default_value": 0.5},
+            {
+                "param_id": "vb",
+                "param_name": "Bright",
+                "default_value": 0.5,
+                "stats": {"min": 0.0, "max": 1.0, "median": 0.5},
+            },
         ],
     }
+}
+
+_ANNOTATIONS = {
+    "Tweed Delight": {
+        "vb": {
+            "param_name": "Bright",
+            "param_type": "continuous",
+            "description": "Adds brightness to the tone.",
+        },
+    },
+    "Solid EQ": {
+        "H12": {
+            "param_name": "HP Freq",
+            "param_type": "continuous",
+            "description": "HPF cutoff 30-600Hz.",
+            "boundary": "0.0 = filter off",
+        },
+    },
 }
 
 
@@ -119,6 +145,43 @@ def test_build_component_schema_context_includes_param() -> None:
     result = build_component_schema_context(["Tweed Delight"], _SCHEMA)
     assert "vb" in result
     assert "Bright" in result
+
+
+def test_build_component_schema_context_includes_stats() -> None:
+    result = build_component_schema_context(["Tweed Delight"], _SCHEMA)
+    assert "range: [0.0, 1.0]" in result
+    assert "median: 0.5" in result
+
+
+def test_build_component_schema_context_includes_annotation() -> None:
+    result = build_component_schema_context(["Tweed Delight"], _SCHEMA, _ANNOTATIONS)
+    assert "Adds brightness to the tone." in result
+
+
+def test_build_component_schema_context_includes_boundary() -> None:
+    schema = {
+        "Solid EQ": {
+            "component_id": 121000,
+            "parameters": [
+                {
+                    "param_id": "H12",
+                    "param_name": "HP Freq",
+                    "default_value": 0.0,
+                    "stats": {"min": 0.0, "max": 0.8, "median": 0.01},
+                },
+            ],
+        }
+    }
+    result = build_component_schema_context(["Solid EQ"], schema, _ANNOTATIONS)
+    assert "0.0 = filter off" in result
+    assert "HPF cutoff 30-600Hz." in result
+
+
+def test_build_component_schema_context_without_annotations() -> None:
+    result = build_component_schema_context(["Tweed Delight"], _SCHEMA, None)
+    assert "range: [0.0, 1.0]" in result
+    # No annotation suffix
+    assert "brightness" not in result.lower()
 
 
 def test_build_component_schema_context_empty_names() -> None:
