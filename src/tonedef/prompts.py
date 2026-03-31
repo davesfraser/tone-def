@@ -351,10 +351,6 @@ STUDIO PROCESSING
   ◆ Mix: 20-25% wet (estimated)
     └─ Reinforces space without drowning the delay pattern
 
-TAGS
-Characters: Clean, Spacious
-Genres: Rock, Alternative
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 WHY THIS CHAIN WORKS
@@ -375,15 +371,6 @@ TAGS
 Characters: Clean, Spacious
 Genres: Rock, Alternative
 </signal_chain>
-```
-
-And update `<output_format>` to add TAGS after CONFIDENCE in the template:
-```
-CONFIDENCE: [HIGH / MEDIUM / LOW] — brief explanation of certainty.
-
-TAGS
-Characters: [comma-separated values from controlled vocabulary]
-Genres: [comma-separated values from controlled vocabulary]
 """
 
 EXEMPLAR_REFINEMENT_PROMPT = """
@@ -636,13 +623,13 @@ Output:
   },
   {
     "component_name": "Solid EQ",
-    "component_id": 161000,
+    "component_id": 121000,
     "base_exemplar": "AA Complete Rig Hot-Plexi",
     "modification": "added",
     "confidence": "estimated",
     "rationale": "Mix EQ sculpts the recorded tone — low-end roll-off keeps bass tight, gentle upper-mid lift preserves SRV's cutting presence in the mix.",
     "description": "Studio-grade equaliser for shaping the overall tonal balance",
-    "parameters": {"Pwr": 1.0, "LF_F": 0.3, "LF_G": 0.55, "LMF_F": 0.35, "LMF_G": 0.52, "LMF_Q": 0.5, "HMF_F": 0.6, "HMF_G": 0.54, "HMF_Q": 0.5, "HF_F": 0.7, "HF_G": 0.56}
+    "parameters": {"Pwr": 1.0, "H0": 0.56, "H1": 0.7, "H2": 0.5, "H3": 0.54, "H4": 0.6, "H5": 0.5, "L6": 0.52, "L7": 0.35, "L8": 0.5, "L9": 0.55, "L10": 0.3, "L11": 0.5, "H12": 0.25, "L13": 0.0, "M12": 1.0, "O14": 0.5}
   },
   {
     "component_name": "Tube Compressor",
