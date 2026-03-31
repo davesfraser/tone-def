@@ -85,17 +85,14 @@ _CRP_ONLY_GROUPS: frozenset[str] = frozenset({"Mic Tone"})
 
 
 def format_tonal_descriptors(
-    chain_type: str,
     descriptors: dict[str, list[dict]] | None = None,
 ) -> str:
     """Format tonal descriptors as a prompt-ready string.
 
-    Only includes zones relevant to the given chain type.  For AMP_ONLY
-    chains the room_mic zone includes Mic Placement and Room Character
-    groups (mapped to MCP X-Fade) but excludes Mic Tone (CRP only).
+    Includes all zones and all descriptor groups so the LLM can use any
+    tonal vocabulary regardless of chain scope.
 
     Args:
-        chain_type: ``"FULL_PRODUCTION"`` or ``"AMP_ONLY"``.
         descriptors: Output of :func:`load_tonal_descriptors`.  Loaded
             automatically if ``None``.
 
@@ -106,18 +103,13 @@ def format_tonal_descriptors(
     if descriptors is None:
         descriptors = load_tonal_descriptors()
 
-    zones = get_zones_for_chain_type(chain_type)
-    is_amp_only = chain_type != "FULL_PRODUCTION"
+    zones = _FULL_PRODUCTION_ZONES
     sections: list[str] = []
 
     for zone in zones:
         entries = descriptors.get(zone, [])
         if not entries:
             continue
-        if is_amp_only and zone == "room_mic":
-            entries = [e for e in entries if e.get("group") not in _CRP_ONLY_GROUPS]
-            if not entries:
-                continue
         label = _ZONE_LABELS.get(zone, zone.upper())
         lines: list[str] = [f"{label}:"]
         for entry in entries:

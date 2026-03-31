@@ -82,10 +82,14 @@ _MODIFICATION_COLOURS = {
     "added": "#9C27B0",
 }
 
-_CHAIN_TYPE_LABELS = {
-    "FULL_PRODUCTION": "Full Production Chain",
-    "AMP_ONLY": "Amplifier-Focused Chain",
-}
+
+def _infer_chain_label(parsed: ParsedSignalChain) -> str:
+    """Derive a display label from the sections the LLM produced."""
+    section_titles = {s.title.upper() for s in parsed.sections}
+    if section_titles & {"RECORDING CHAIN", "STUDIO PROCESSING"}:
+        return "Full Production Chain"
+    return "Amplifier-Focused Chain"
+
 
 _CONFIDENCE_DOT = {
     "documented": "🟢",
@@ -391,7 +395,7 @@ def _render_similar_presets(exemplars: list[dict] | None) -> None:
 
 def _render_tone_overview(parsed: ParsedSignalChain) -> None:
     """Render the tone overview: tag bar + About Your Tone card."""
-    ct_label = _CHAIN_TYPE_LABELS.get(parsed.chain_type, parsed.chain_type.replace("_", " "))
+    ct_label = _infer_chain_label(parsed)
 
     # Tag bar with styled pills
     tag_pills = [f'<span class="tag-pill chain-type">{html_mod.escape(ct_label)}</span>']

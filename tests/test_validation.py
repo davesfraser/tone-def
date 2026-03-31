@@ -181,17 +181,16 @@ class TestValidatePhase1:
         result = validate_phase1(parsed)
         assert result.is_valid
 
-    def test_empty_chain_type_error(self) -> None:
+    def test_empty_chain_type_warns(self) -> None:
         parsed = _make_parsed(chain_type="")
         result = validate_phase1(parsed)
-        assert not result.is_valid
-        assert any("signal chain type" in e for e in result.errors)
+        assert result.is_valid  # warning, not error
+        assert any("scope" in w for w in result.warnings)
 
-    def test_invalid_chain_type_error(self) -> None:
+    def test_unknown_chain_type_still_valid(self) -> None:
         parsed = _make_parsed(chain_type="WEIRD")
         result = validate_phase1(parsed)
-        assert not result.is_valid
-        assert any("WEIRD" in e for e in result.errors)
+        assert result.is_valid
 
     def test_no_sections_error(self) -> None:
         parsed = _make_parsed(sections=[])
@@ -231,7 +230,7 @@ class TestValidatePhase1:
         assert not result.is_valid
         assert any("no type specified" in e for e in result.errors)
 
-    def test_full_production_missing_cabinet_warns(self) -> None:
+    def test_missing_cabinet_warns(self) -> None:
         parsed = _make_parsed(
             sections=[
                 Section(
@@ -244,7 +243,7 @@ class TestValidatePhase1:
         assert result.is_valid  # warning, not error
         assert any("cabinet and microphone" in w for w in result.warnings)
 
-    def test_amp_only_no_cabinet_no_warning(self) -> None:
+    def test_amp_only_missing_cabinet_also_warns(self) -> None:
         parsed = _make_parsed(
             chain_type="AMP_ONLY",
             sections=[
@@ -255,7 +254,7 @@ class TestValidatePhase1:
             ],
         )
         result = validate_phase1(parsed)
-        assert not any("Cabinet" in w for w in result.warnings)
+        assert any("cabinet and microphone" in w for w in result.warnings)
 
     def test_no_tags_warns(self) -> None:
         parsed = _make_parsed(tags_characters=[], tags_genres=[])

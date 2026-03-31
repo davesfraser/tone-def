@@ -241,22 +241,17 @@ _CRP_MIC_MAX = 4
 _CRP_MPOS_MAX = 2
 
 
-def build_crp_reference_context(chain_type: str) -> str:
-    """Return CRP enum tables for FULL_PRODUCTION chains, empty for AMP_ONLY.
+def build_crp_reference_context() -> str:
+    """Return CRP enum tables for Phase 2 prompt injection.
 
-    For AMP_ONLY chains, Control Room Pro is not used — the refinement
-    rules direct the LLM to Matched Cabinet Pro instead.  Omitting the
-    CRP tables saves ~400 tokens per AMP_ONLY call.
-
-    Args:
-        chain_type: ``"FULL_PRODUCTION"`` or ``"AMP_ONLY"``.
+    Always returns the full tables so the LLM can choose Control Room Pro
+    or Matched Cabinet Pro based on the tonal context rather than a
+    prescriptive chain type.
 
     Returns:
-        Formatted CRP enum tables, or a brief note explaining their absence.
+        Formatted CRP enum tables.
     """
-    if chain_type == "FULL_PRODUCTION":
-        return format_crp_reference()
-    return "(Control Room Pro not used for AMP_ONLY chains — use Matched Cabinet Pro instead)"
+    return format_crp_reference()
 
 
 def _validate_crp_params(components: list[dict]) -> None:
@@ -545,7 +540,6 @@ def map_components(
     )
 
     # 6. Build prompt — inject compact tonal target instead of raw text
-    chain_type = parsed.chain_type or "AMP_ONLY"
     tonal_target = format_tonal_target(parsed)
     manual_context = build_manual_reference_context(
         exemplar_chunks=manual_for_exemplars,
@@ -554,8 +548,8 @@ def map_components(
     )
     schema_context = build_component_schema_context(all_component_names, schema, annotations)
     cabinet_context = build_cabinet_lookup_context(amp_cabinet_lookup)
-    crp_context = build_crp_reference_context(chain_type)
-    tonal_descriptor_context = format_tonal_descriptors(chain_type)
+    crp_context = build_crp_reference_context()
+    tonal_descriptor_context = format_tonal_descriptors()
 
     prompt = (
         EXEMPLAR_REFINEMENT_PROMPT.replace("{{SIGNAL_CHAIN}}", tonal_target)
@@ -627,11 +621,22 @@ def map_components(
     components = fill_defaults(components, schema)
 
     # 9b. Cabinet enforcement.
-    # If the LLM emitted a Control Room / Control Room Pro, it serves as
-    # the cabinet solution — skip Matched Cabinet Pro injection entirely.
-    # Otherwise, strip any raw cabinet the LLM emitted and enforce
-    # Matched Cabinet Pro with three-tier parameter layering.
-    if not _has_control_room(components):
+    # Respect the LLM's cabinet choice:
+    #   - If CRP is present → validate CRP params (integer enums).
+    #   - If Matched Cabinet Pro is present (no CRP) → keep it as-is.
+    #   - If neither → inject Matched Cabinet Pro as a safety fallback.
+    has_crp = _has_control_room(components)
+    has_mcp = any(c.get("component_name", "") == _MATCHED_CABINET_PRO_NAME for c in components)
+
+    if has_crp:
+        # CRP is present — validate Cab1/Mic1/MPos1 and cast to int.
+        # Strip any MCP the LLM may have emitted alongside CRP.
+        components = [
+            c for c in components if c.get("component_name", "") != _MATCHED_CABINET_PRO_NAME
+        ]
+        _validate_crp_params(components)
+    elif not has_mcp:
+        # No cabinet solution at all — inject Matched Cabinet Pro as fallback.
         base_exemplar = components[0].get("base_exemplar", "") if components else ""
         exemplar_cab_params = _extract_exemplar_cabinet_params(exemplars)
         components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
@@ -649,8 +654,5 @@ def map_components(
             components.insert(amp_idx + 1, cabinet)
         else:
             components.append(cabinet)
-    else:
-        # CRP is present — validate Cab1/Mic1/MPos1 and cast to int.
-        _validate_crp_params(components)
 
     return components, exemplars

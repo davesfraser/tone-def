@@ -253,7 +253,7 @@ class TestEdgeCases:
 
     def test_empty_input(self) -> None:
         result = parse_signal_chain("")
-        assert result.chain_type == ""
+        assert result.chain_type == "AMP_ONLY"
         assert result.sections == []
 
     def test_missing_confidence(self) -> None:
@@ -275,6 +275,18 @@ class TestEdgeCases:
         assert unit.parameters[0].explanation == ""
         assert unit.parameters[1].explanation == "High gain"
 
+    def test_approach_format_parses_reason(self) -> None:
+        raw = "<signal_chain>\nApproach: warm lo-fi porch blues rig with tape degradation\n\nGUITAR SIGNAL CHAIN\n\n[ Fender Tweed — amplifier ] [INFERRED]\n  ◆ Volume: 7\n    └─ Pushed into saturation\n</signal_chain>"
+        result = parse_signal_chain(raw)
+        assert "lo-fi" in result.chain_type_reason
+        assert result.chain_type == "AMP_ONLY"  # no recording/studio sections
+
+    def test_approach_format_derives_full_production(self) -> None:
+        raw = "<signal_chain>\nApproach: reconstructing the studio signal chain\n\nGUITAR SIGNAL CHAIN\n\n[ Amp — amplifier ] [DOCUMENTED]\n  ◆ Volume: 5\n    └─ Level\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\nCABINET AND MIC\n\n[ Cab — cabinet ] [INFERRED]\n  ◆ Speaker: Greenback\n    └─ Crunch\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\nRECORDING CHAIN\n\n[ Neve 1073 — preamp ] [INFERRED]\n  ◆ Gain: +40dB\n    └─ Warmth\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\nSTUDIO PROCESSING\n\n[ SSL Compressor — compressor ] [ESTIMATED]\n  ◆ Ratio: 2:1\n    └─ Glue\n</signal_chain>"
+        result = parse_signal_chain(raw)
+        assert result.chain_type == "FULL_PRODUCTION"
+        assert "studio signal chain" in result.chain_type_reason
+
 
 # ---------------------------------------------------------------------------
 # format_tonal_target
@@ -286,8 +298,8 @@ class TestFormatTonalTargetFullProduction:
     def output(self) -> str:
         return format_tonal_target(parse_signal_chain(FULL_PRODUCTION_EXAMPLE))
 
-    def test_contains_chain_type(self, output: str) -> None:
-        assert "Chain type: FULL_PRODUCTION" in output
+    def test_contains_approach(self, output: str) -> None:
+        assert "Approach:" in output or "Chain type:" in output
 
     def test_contains_unit_names(self, output: str) -> None:
         assert "Electro-Harmonix Memory Man" in output
@@ -339,8 +351,8 @@ class TestFormatTonalTargetAmpOnly:
     def output(self) -> str:
         return format_tonal_target(parse_signal_chain(AMP_ONLY_EXAMPLE))
 
-    def test_contains_chain_type(self, output: str) -> None:
-        assert "Chain type: AMP_ONLY" in output
+    def test_contains_approach(self, output: str) -> None:
+        assert "Approach:" in output or "Chain type:" in output
 
     def test_contains_unit_names(self, output: str) -> None:
         assert "Tube Screamer" in output

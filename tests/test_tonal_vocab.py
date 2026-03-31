@@ -46,30 +46,21 @@ def test_get_zones_amp_only_includes_room_mic() -> None:
     assert "amp" in zones
 
 
-def test_format_full_production_includes_room_mic() -> None:
-    result = format_tonal_descriptors("FULL_PRODUCTION")
+def test_format_includes_room_mic() -> None:
+    result = format_tonal_descriptors()
     assert "ROOM & MICROPHONE" in result
     assert '"air"' in result
 
 
-def test_format_amp_only_includes_room_mic_placement() -> None:
-    result = format_tonal_descriptors("AMP_ONLY")
-    assert "ROOM & MICROPHONE" in result
-    assert '"close-miked"' in result
-    assert '"distant"' in result
-    assert '"roomy"' in result
-    assert '"air"' in result
-
-
-def test_format_amp_only_excludes_mic_tone() -> None:
-    result = format_tonal_descriptors("AMP_ONLY")
-    assert '"silky"' not in result
-    assert '"aggressive"' not in result
-    assert '"detailed"' not in result
+def test_format_includes_mic_tone() -> None:
+    result = format_tonal_descriptors()
+    assert '"silky"' in result
+    assert '"aggressive"' in result
+    assert '"detailed"' in result
 
 
 def test_format_includes_common_descriptors() -> None:
-    result = format_tonal_descriptors("FULL_PRODUCTION")
+    result = format_tonal_descriptors()
     assert '"brighter"' in result
     assert '"warmer"' in result
     assert '"grittier"' in result
@@ -79,14 +70,14 @@ def test_format_includes_common_descriptors() -> None:
 
 
 def test_format_includes_expanded_cabinet_descriptors() -> None:
-    result = format_tonal_descriptors("FULL_PRODUCTION")
+    result = format_tonal_descriptors()
     assert '"tight"' in result
     assert '"loose"' in result
     assert '"woody"' in result
 
 
 def test_format_includes_expanded_mic_descriptors() -> None:
-    result = format_tonal_descriptors("FULL_PRODUCTION")
+    result = format_tonal_descriptors()
     assert '"silky"' in result
     assert '"aggressive"' in result
     assert '"detailed"' in result
@@ -239,7 +230,7 @@ def test_room_mic_placement_deltas_reference_mcp_xfade() -> None:
         )
 
 
-def test_room_mic_format_includes_mcp_xfade_for_amp_only() -> None:
-    """AMP_ONLY formatted output should contain MCP X-Fade guidance."""
-    result = format_tonal_descriptors("AMP_ONLY")
+def test_room_mic_format_includes_mcp_xfade() -> None:
+    """Formatted output should contain MCP X-Fade guidance."""
+    result = format_tonal_descriptors()
     assert "MCP X-Fade" in result

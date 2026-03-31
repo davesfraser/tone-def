@@ -55,6 +55,13 @@ _CHAIN_TYPE = re.compile(
     r"Chain\s+type:\s*(AMP_ONLY|FULL_PRODUCTION)\s*[\u2014\u2013-]\s*(.+)",
     re.IGNORECASE,
 )
+_APPROACH = re.compile(
+    r"Approach:\s*(.+)",
+    re.IGNORECASE,
+)
+# Section titles that imply a full production scope (recording + studio)
+_PRODUCTION_SECTIONS = {"RECORDING CHAIN", "STUDIO PROCESSING"}
+
 _UNIT_LINE = re.compile(
     r"\[\s*(.+?)\s*—\s*(.+?)\s*\]\s*\[(DOCUMENTED|INFERRED|ESTIMATED)\]",
     re.IGNORECASE,
@@ -93,11 +100,15 @@ def parse_signal_chain(raw: str) -> ParsedSignalChain:
 
     result = ParsedSignalChain(chain_type="", chain_type_reason="")
 
-    # Extract chain type
+    # Extract chain type — try legacy "Chain type:" first, fall back to "Approach:"
     ct_match = _CHAIN_TYPE.search(text)
     if ct_match:
         result.chain_type = ct_match.group(1).upper()
         result.chain_type_reason = ct_match.group(2).strip()
+    else:
+        ap_match = _APPROACH.search(text)
+        if ap_match:
+            result.chain_type_reason = ap_match.group(1).strip()
 
     # Split into blocks by the ━━━ separator
     blocks = _SECTION_SEP.split(text)
@@ -115,6 +126,14 @@ def parse_signal_chain(raw: str) -> ParsedSignalChain:
 
         # Try to extract an equipment section
         _extract_equipment_section(block, result)
+
+    # Derive chain_type from sections when not explicitly set (new Approach format)
+    if not result.chain_type:
+        section_titles = {s.title.upper() for s in result.sections}
+        if section_titles & _PRODUCTION_SECTIONS:
+            result.chain_type = "FULL_PRODUCTION"
+        else:
+            result.chain_type = "AMP_ONLY"
 
     return result
 
@@ -261,7 +280,11 @@ def format_tonal_target(parsed: ParsedSignalChain) -> str:
     """
     lines: list[str] = []
 
-    lines.append(f"Chain type: {parsed.chain_type}")
+    lines.append(
+        f"Approach: {parsed.chain_type_reason}"
+        if parsed.chain_type_reason
+        else f"Chain type: {parsed.chain_type}"
+    )
 
     for section in parsed.sections:
         lines.append("")

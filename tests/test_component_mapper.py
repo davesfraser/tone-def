@@ -766,20 +766,14 @@ def test_cabinet_ordering_with_multiple_post_effects() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_crp_reference_context_full_production() -> None:
-    result = build_crp_reference_context("FULL_PRODUCTION")
+def test_crp_reference_context_always_returns_tables() -> None:
+    result = build_crp_reference_context()
     assert isinstance(result, str)
     assert "CABINETS" in result
     assert "MICROPHONES" in result
     assert "MIC POSITIONS" in result
     assert "DI Box" in result
     assert "Dyn 57" in result
-
-
-def test_crp_reference_context_amp_only_omits_tables() -> None:
-    result = build_crp_reference_context("AMP_ONLY")
-    assert "CABINETS" not in result
-    assert "Matched Cabinet Pro" in result
 
 
 # ---------------------------------------------------------------------------

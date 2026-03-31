@@ -30,9 +30,6 @@ def _is_cabinet_solution(name: str) -> bool:
     return name in _CABINET_SOLUTION_NAMES or "cabinet" in name.lower()
 
 
-_VALID_CHAIN_TYPES = {"AMP_ONLY", "FULL_PRODUCTION"}
-
-
 @dataclass
 class ValidationResult:
     """Accumulator for validation errors and warnings."""
@@ -81,11 +78,9 @@ def validate_phase1(parsed: ParsedSignalChain) -> ValidationResult:
     """
     result = ValidationResult()
 
-    # chain_type
+    # chain_type — derived from sections, warn if empty
     if not parsed.chain_type:
-        result.errors.append("Could not determine the signal chain type")
-    elif parsed.chain_type not in _VALID_CHAIN_TYPES:
-        result.errors.append(f"Unrecognised chain type: {parsed.chain_type}")
+        result.warnings.append("Could not determine the signal chain scope")
 
     # sections / units
     if not parsed.sections:
@@ -105,12 +100,9 @@ def validate_phase1(parsed: ParsedSignalChain) -> ValidationResult:
                     )
 
     # Warnings
-    if parsed.chain_type == "FULL_PRODUCTION":
-        cab_titles = {s.title for s in parsed.sections}
-        if "Cabinet And Mic" not in cab_titles:
-            result.warnings.append(
-                "Full production chain is missing a cabinet and microphone section"
-            )
+    cab_titles = {s.title for s in parsed.sections}
+    if "Cabinet And Mic" not in cab_titles:
+        result.warnings.append("Signal chain is missing a cabinet and microphone section")
 
     if not parsed.tags_characters and not parsed.tags_genres:
         result.warnings.append("No genre or character tags were detected for this tone")

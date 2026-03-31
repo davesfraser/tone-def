@@ -54,14 +54,14 @@ CABINET:
   enclosure size
 
 ROOM & MICROPHONE:
-* Mic Placement (close-miked, present, distant) → for FULL_PRODUCTION
-  adjust mic distance and position in Control Room Pro; for AMP_ONLY
-  adjust X-Fade (mic distance) on Matched Cabinet Pro
-* Room Character (intimate, roomy, live-room, dead-room, air) → for
-  FULL_PRODUCTION adjust CRP room amount, reflections, and Air; for
-  AMP_ONLY increase Matched Cabinet Pro X-Fade to add room
+* Mic Placement (close-miked, present, distant) → adjust mic distance and
+  position in Control Room Pro if using CRP; adjust X-Fade (mic distance)
+  on Matched Cabinet Pro if using MCP
+* Room Character (intimate, roomy, live-room, dead-room, air) → adjust CRP
+  room amount, reflections, and Air if using CRP; increase Matched Cabinet
+  Pro X-Fade to add room if using MCP
 * Mic Tone (silky, aggressive, smooth, detailed) → choose mic type and
-  position for tonal character (Control Room Pro only)
+  position for tonal character (available when using Control Room Pro)
 
 EFFECTS & SPACE:
 * Spatial Amount (more ambient, drier) → adjust reverb/delay mix or
@@ -79,32 +79,37 @@ analysis and modifiers to guide the signal chain design. Do not include this
 analysis in the output.
 </sonic_analysis>
 
-<chain_type_detection>
-Determine chain_type before generating the signal chain:
+<scope_reasoning>
+Before generating the signal chain, decide which sections the tone requires.
+Every chain must include GUITAR SIGNAL CHAIN and CABINET AND MIC. Optionally
+include RECORDING CHAIN and STUDIO PROCESSING when the tonal context calls for
+them.
 
-FULL_PRODUCTION
-Use when the query references a specific recording, album, or song.
-Document the likely signal chain for reference and educational purposes — this
-is gear archaeology, an informed reconstruction of what was probably used and
-why it sounds the way it does. Frame findings accordingly: not as instructions
-to recreate the recording, but as an explanation of its likely construction.
+Include recording and studio sections when:
+- The query references a specific recording, album, or song — reconstruct the
+  full signal path as gear archaeology.
+- The query describes recording or production character (lo-fi, tape-saturated,
+  room ambience, mic choice, studio compression, etc.) — the tone cannot be
+  achieved with amp and cabinet alone.
+- The described sound implies post-cabinet processing (bitcrushing, tape wobble,
+  studio EQ, bus compression, spatial effects beyond simple reverb).
 
-AMP_ONLY
-Use when the query references a guitarist's general sound, style, or genre.
-Model the live playing signal chain only. Excludes recording chain and studio
-processing but always includes cabinet and mic selection — a signal chain
-without a cabinet is incomplete.
+Omit recording and studio sections when:
+- The query describes a straightforward amp tone, pedal combination, or playing
+  style with no recording or production character implied.
+- Adding studio processing would not meaningfully contribute to the described tone.
 
-If ambiguous, choose AMP_ONLY and briefly note the assumption.
-Always honour explicit user preference.
+When in doubt, include the sections — it is better to over-deliver than to
+artificially constrain the tone.
 
-The chain_type reason (after the dash) is shown directly to the user as the
+The approach line (after "Approach:") is shown directly to the user as the
 first line of "About Your Tone". Write it as a concise, user-facing
 explanation of the tonal approach — NOT as meta-commentary about the query.
 Bad:  "query references a specific recording"
 Good: "reconstructing the studio signal chain heard on this track"
+Good: "modelling a warm, lo-fi porch blues rig with deliberate tape degradation"
 Good: "modelling the live rig and playing style"
-</chain_type_detection>
+</scope_reasoning>
 
 <fallback_behaviour>
 Handle these cases before generating output:
@@ -166,7 +171,6 @@ Parameter values not drawn from documented sources should include (estimated).
 
 <cabinet_and_mic>
 Every signal chain must include a cabinet and microphone recommendation.
-This applies to both AMP_ONLY and FULL_PRODUCTION queries.
 
 For the cabinet, identify:
 * Cabinet type and speaker configuration (e.g. 2x12 open back, 4x12 closed back)
@@ -176,13 +180,13 @@ For the microphone, identify:
 * Microphone model (e.g. Shure SM57, Royer R-121)
 * Placement (e.g. edge of dust cap, slightly off-axis)
 
-Apply provenance labels as with all other units. For AMP_ONLY queries infer
-the most appropriate cabinet and mic from the amp choice and genre context —
-this information is well documented for most classic amp and cabinet pairings.
+Apply provenance labels as with all other units. Infer the most appropriate
+cabinet and mic from the amp choice and genre context — this information is
+well documented for most classic amp and cabinet pairings.
 </cabinet_and_mic>
 
 <mastering_guidance>
-For FULL_PRODUCTION queries, studio processing should reflect the audible
+When including studio processing, it should reflect the audible
 characteristics of the recording rather than a generic mix chain. Describe how
 processing shapes the sound — transients, tonal balance, space. If specific
 equipment cannot be identified, describe the processing behaviour instead of
@@ -223,13 +227,14 @@ Rules:
 <output_format>
 Wrap the entire output in <signal_chain></signal_chain> XML tags.
 
-For AMP_ONLY queries use two sections: SIGNAL CHAIN and CABINET AND MIC.
-For FULL_PRODUCTION queries use four sections:
-GUITAR SIGNAL CHAIN, CABINET AND MIC, RECORDING CHAIN, STUDIO PROCESSING.
+Always use:     GUITAR SIGNAL CHAIN and CABINET AND MIC.
+When needed:    RECORDING CHAIN and STUDIO PROCESSING (include when the
+                tone requires recording or production character — see
+                scope_reasoning above).
 
-Chain type: [AMP_ONLY or FULL_PRODUCTION] — [one sentence reason]
+Approach: [one sentence describing the tonal approach]
 
-SIGNAL CHAIN (or GUITAR SIGNAL CHAIN for FULL_PRODUCTION)
+GUITAR SIGNAL CHAIN
 
 [ Unit name — unit type ] [DOCUMENTED/INFERRED/ESTIMATED]
   ◆ [Parameter]: [value]
@@ -268,7 +273,7 @@ CONFIDENCE: [HIGH / MEDIUM / LOW] — brief explanation of certainty.
 User query: "I want the guitar tone from Where The Streets Have No Name by U2"
 
 <signal_chain>
-Chain type: FULL_PRODUCTION — reconstructing the studio signal chain from this iconic recording
+Approach: reconstructing the studio signal chain from this iconic recording
 
 GUITAR SIGNAL CHAIN
 
@@ -506,38 +511,41 @@ added, use default_value from the component schema.
    amp for a Marshall-style one). Use manual_reference to understand the
    replacement's parameters and set them appropriately.
 5. ADD components the tonal target requires beyond what the exemplar
-   provides. For FULL_PRODUCTION chains, this typically includes
-   post-cabinet processing — Control Room Pro (119000) for cabinet/room/mic
-   simulation, Solid EQ (161000) or EQ Parametric (60000) for tonal
-   shaping, Solid Bus Comp (159000) or Tube Compressor (58000) for
-   dynamics, and spatial effects (delay, reverb). Use the component schema
-   for parameter defaults and manual_reference for guidance.
+   provides. When the tonal target describes recording or production
+   character, this typically includes post-cabinet processing — Control
+   Room Pro (119000) for cabinet/room/mic simulation, Solid EQ (161000)
+   or EQ Parametric (60000) for tonal shaping, Solid Bus Comp (159000) or
+   Tube Compressor (58000) for dynamics, and spatial effects (delay,
+   reverb). For lo-fi or degraded tones, consider Bite (145000) for
+   bitcrushing and Tape Wobble for tape emulation. Use the component
+   schema for parameter defaults and manual_reference for guidance.
 6. REMOVE components only when they contradict the tonal target (e.g.
    remove a chorus if the target specifies a dry tone). Do not remove
    effects that complement the described tone.
 7. CABINET — emit exactly one cabinet solution after the amp:
-   - **Control Room Pro (119000)** — preferred for FULL_PRODUCTION chains.
+   - **Control Room Pro (119000)** — use when the tonal target calls for
+     specific microphone selection, mic placement, or room character.
      It combines cabinet simulation, room modelling, and microphone
      placement in one component. When using Control Room Pro, do NOT also
      emit Matched Cabinet Pro — Control Room Pro replaces it entirely.
      Use the tonal target's cabinet and microphone suggestions together
      with the crp_reference tables to set Cab1, Mic1, and MPos1 to the
      correct integer values. These are integer enums — emit them as-is.
-   - **Matched Cabinet Pro (156000)** — use for AMP_ONLY chains or when
-     the tonal target does not call for studio room/mic simulation. When
-     using Matched Cabinet Pro, look up the amp in the cabinet_lookup
-     table and set the Cab parameter to the cab_value from the table.
-     The Cab parameter is an integer enum — emit it as-is.
+   - **Matched Cabinet Pro (156000)** — use when the tonal target does
+     not call for specific mic/room control and a simple cabinet match
+     is sufficient. When using Matched Cabinet Pro, look up the amp in
+     the cabinet_lookup table and set the Cab parameter to the cab_value
+     from the table. The Cab parameter is an integer enum — emit it as-is.
    Post-cabinet effects (recording chain, studio processing) follow the
    cabinet component.
 8. ORDER — preserve signal chain order: pre-amp effects → amp → cabinet
    → post-cabinet effects (recording chain, studio processing).
 9. Do not include routing utilities (Split, CrossOver, Container).
-10. CHAIN COMPLETENESS — match the scope of the tonal target:
-    - AMP_ONLY targets: pre-amp effects → amp → cabinet. Keep it focused.
-    - FULL_PRODUCTION targets: build the full recording chain the target
-      describes. A typical FULL_PRODUCTION chain includes 6-12 components
-      spanning pedals, amp, cabinet, and studio/recording processing.
+10. CHAIN COMPLETENESS — match the scope described in the tonal target.
+    Include only the components the tone requires. A focused amp tone may
+    need just 3-4 components; a tone with recording or production character
+    may need 6-12 spanning pedals, amp, cabinet, and studio/recording
+    processing. Let the tonal target guide the scope, not a fixed formula.
 </refinement_rules>
 
 <output_schema>
@@ -548,7 +556,7 @@ Return a JSON array. Each element must have exactly these fields:
   "base_exemplar": "name of exemplar preset used as starting point",
   "modification": "unchanged" | "adjusted" | "swapped" | "added",
   "confidence": "documented" | "inferred" | "estimated",
-  "rationale": "1-2 sentences explaining why this component was chosen and how its parameters achieve the requested tone. Write for the end user — never reference internal terms like FULL_PRODUCTION, AMP_ONLY, chain types, or pipeline stages.",
+  "rationale": "1-2 sentences explaining why this component was chosen and how its parameters achieve the requested tone. Write for the end user — never reference internal terms like chain types or pipeline stages.",
   "description": "1 sentence explaining what this component does and how it shapes the tone in plain language",
   "parameters": {
     "<param_id>": <float or int>,
@@ -584,10 +592,10 @@ Constraints:
 </output_schema>
 
 <examples>
-EXAMPLE 1 — FULL_PRODUCTION (specific recording, complete studio chain)
+EXAMPLE 1 — Full production chain (specific recording, complete studio chain)
 
 Tonal target describes a Stevie Ray Vaughan "Texas Flood" tone —
-FULL_PRODUCTION chain with Tube Screamer into a Fender-style amp, studio
+full chain with Tube Screamer into a Fender-style amp, studio
 compression, EQ, and ambient reverb from the recording.
 
 Base exemplar "AA Complete Rig Hot-Plexi" is the closest tonal match.
@@ -658,17 +666,18 @@ Output:
   }
 ]
 
-Note: Control Room Pro replaces Matched Cabinet Pro for FULL_PRODUCTION —
-it handles cabinet, room, and mic simulation internally. Tweed Delight →
-Cab1=18 (1x12 Tweed) from crp_reference, Mic1=1 (SM57), MPos1=0 (Cap).
+Note: Control Room Pro replaces Matched Cabinet Pro when the tone calls for
+specific mic/room control — it handles cabinet, room, and mic simulation
+internally. Tweed Delight → Cab1=18 (1x12 Tweed) from crp_reference,
+Mic1=1 (SM57), MPos1=0 (Cap).
 g1=0.85 sets channel 1 to a strong level (~-3 dB). r1=0.25 adds moderate
 room ambience matching the SRV studio recording. a=0.15 adds subtle air.
 Channels 2-8 omitted parameters are filled from schema defaults.
 
 
-EXAMPLE 2 — AMP_ONLY (general artist style, focused chain)
+EXAMPLE 2 — Focused chain (general style, no recording character)
 
-Tonal target describes a general clean jazz tone — AMP_ONLY chain with
+Tonal target describes a general clean jazz tone — focused chain with
 a Fender-style amp, light compression, no studio processing needed.
 
 Base exemplar "800 Clean" is the closest tonal match.
