@@ -6,7 +6,9 @@ import pytest
 
 from tonedef.signal_chain_parser import (
     ParsedSignalChain,
+    Section,
     format_tonal_target,
+    infer_chain_label,
     parse_signal_chain,
 )
 
@@ -381,3 +383,38 @@ class TestFormatTonalTargetEmpty:
         output = format_tonal_target(parsed)
         assert "Chain type:" in output
         assert "TAGS" not in output
+
+
+# ---------------------------------------------------------------------------
+# infer_chain_label
+# ---------------------------------------------------------------------------
+
+
+class TestInferChainLabel:
+    def test_full_production_label(self) -> None:
+        parsed = parse_signal_chain(FULL_PRODUCTION_EXAMPLE)
+        assert infer_chain_label(parsed) == "Full Production Chain"
+
+    def test_amp_only_label(self) -> None:
+        parsed = parse_signal_chain(AMP_ONLY_EXAMPLE)
+        assert infer_chain_label(parsed) == "Amplifier-Focused Chain"
+
+    def test_empty_sections_returns_amp_focused(self) -> None:
+        parsed = ParsedSignalChain(chain_type="AMP_ONLY", chain_type_reason="test")
+        assert infer_chain_label(parsed) == "Amplifier-Focused Chain"
+
+    def test_recording_chain_section_triggers_full_production(self) -> None:
+        parsed = ParsedSignalChain(
+            chain_type="",
+            chain_type_reason="",
+            sections=[Section(title="Recording Chain")],
+        )
+        assert infer_chain_label(parsed) == "Full Production Chain"
+
+    def test_studio_processing_section_triggers_full_production(self) -> None:
+        parsed = ParsedSignalChain(
+            chain_type="",
+            chain_type_reason="",
+            sections=[Section(title="Studio Processing")],
+        )
+        assert infer_chain_label(parsed) == "Full Production Chain"

@@ -1,0 +1,122 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ── Global ── */
+.block-container { max-width: 860px; }
+section[data-testid="stSidebar"] { display: none; }
+
+/* ── Stepper bar ── */
+.stepper {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; margin: 0.5rem auto 1.5rem; padding: 0.6rem 1rem;
+    background: #1A1D23; border-radius: 12px; border: 1px solid #2a2d35;
+}
+.step {
+    display: flex; align-items: center; gap: 0.45rem;
+    font-size: 0.82rem; font-weight: 500; color: #555;
+    font-family: 'Inter', sans-serif;
+}
+.step.active { color: #FF6B35; }
+.step.done { color: #4CAF50; }
+.step-arrow { color: #333; margin: 0 0.5rem; font-size: 0.75rem; }
+
+/* ── Cards ── */
+.tone-card {
+    background: #1A1D23; border: 1px solid #2a2d35; border-radius: 12px;
+    padding: 1.2rem 1.4rem; margin-bottom: 1rem;
+}
+.tone-card h4 {
+    margin: 0 0 0.5rem 0; font-family: 'Inter', sans-serif; font-size: 1rem;
+}
+.tone-card p { margin: 0.3rem 0; color: #ccc; font-size: 0.92rem; line-height: 1.5; }
+
+/* ── Component cards ── */
+.comp-card {
+    background: #1A1D23; border: 1px solid #2a2d35; border-radius: 12px;
+    padding: 1rem 1.2rem; margin-bottom: 0.75rem;
+}
+.comp-header {
+    display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem;
+    flex-wrap: wrap;
+}
+.comp-name {
+    font-family: 'Inter', sans-serif; font-weight: 600; font-size: 1rem;
+    color: #FAFAFA;
+}
+.comp-pill {
+    display: inline-block; padding: 0.15rem 0.55rem; border-radius: 20px;
+    font-size: 0.72rem; font-weight: 600; color: #fff;
+    text-transform: uppercase; letter-spacing: 0.03em;
+}
+.comp-rationale {
+    color: #bbb; font-size: 0.88rem; line-height: 1.55; margin: 0.4rem 0 0 0;
+    font-family: 'Inter', sans-serif;
+}
+.comp-params {
+    margin-top: 0.6rem; padding: 0.5rem 0.7rem;
+    background: #12141a; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;
+    color: #888; line-height: 1.7;
+}
+.comp-params span.pk { color: #FF6B35; }
+.comp-params span.pv { color: #aaa; }
+
+/* ── Query summary bar ── */
+.query-summary {
+    background: #1A1D23; border: 1px solid #2a2d35; border-radius: 10px;
+    padding: 0.8rem 1.2rem; margin-bottom: 1rem;
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.5rem;
+}
+.query-summary .qs-text {
+    color: #ccc; font-size: 0.9rem; font-family: 'Inter', sans-serif;
+    flex: 1;
+}
+.query-summary .qs-mods {
+    display: flex; gap: 0.3rem; flex-wrap: wrap;
+}
+.query-summary .qs-mod {
+    background: #FF6B3522; color: #FF6B35; font-size: 0.72rem;
+    padding: 0.1rem 0.45rem; border-radius: 10px; font-weight: 500;
+}
+
+/* ── Section dividers ── */
+.section-label {
+    font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #555; margin: 1.2rem 0 0.6rem 0;
+    font-family: 'Inter', sans-serif;
+}
+.chain-arrow {
+    text-align: center; color: #444; font-size: 1rem; margin: 0.15rem 0;
+}
+
+/* ── Example buttons equal height ── */
+div[data-testid="column"] .stButton {
+    height: 100%;
+}
+div[data-testid="column"] .stButton > button {
+    height: 100% !important;
+    min-height: 2.8rem;
+}
+
+/* ── Tag bar ── */
+.tag-bar {
+    display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    margin-bottom: 0.6rem; font-family: 'Inter', sans-serif; font-size: 0.85rem;
+}
+.tag-bar .tag-label {
+    color: #888; font-weight: 500; font-size: 0.75rem;
+    text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tag-bar .tag-pill {
+    display: inline-block; padding: 0.15rem 0.55rem; border-radius: 20px;
+    font-size: 0.75rem; font-weight: 500;
+}
+.tag-pill.genre { background: #2196F322; color: #64B5F6; }
+.tag-pill.character { background: #FF980022; color: #FFB74D; }
+.tag-pill.chain-type { background: #4CAF5022; color: #81C784; }
+
+/* ── Component description ── */
+.comp-description {
+    color: #999; font-size: 0.82rem; line-height: 1.4; margin: 0.1rem 0 0.3rem 0;
+    font-family: 'Inter', sans-serif; font-style: italic;
+}

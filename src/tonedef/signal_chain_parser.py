@@ -307,3 +307,19 @@ def format_tonal_target(parsed: ParsedSignalChain) -> str:
             lines.append(f"Genres: {', '.join(parsed.tags_genres)}")
 
     return "\n".join(lines)
+
+
+def infer_chain_label(parsed: ParsedSignalChain) -> str:
+    """Derive a human-readable display label from the sections the LLM produced.
+
+    Args:
+        parsed: A fully parsed Phase 1 output.
+
+    Returns:
+        ``"Full Production Chain"`` when recording/studio sections are
+        present, otherwise ``"Amplifier-Focused Chain"``.
+    """
+    section_titles = {s.title.upper() for s in parsed.sections}
+    if section_titles & _PRODUCTION_SECTIONS:
+        return "Full Production Chain"
+    return "Amplifier-Focused Chain"
