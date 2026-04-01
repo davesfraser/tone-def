@@ -115,6 +115,7 @@ flowchart LR
         D --> F[tag_catalogue.json\n111 tags]
         D --> G[exemplar_store.json\n1425 structured records\ncomponent + tag data]
         B --> H[build_manual_chunks.py\nPDF → 118 component chunks]
+        C --> O[crp_enum_lookup.json\ncabinet/mic/position enums]
     end
 
     subgraph Indexing["Indexing"]
@@ -239,11 +240,11 @@ scripts/
     build_retrieval_index.py      index manual chunks into ChromaDB
     build_exemplar_index.py       index factory presets → exemplar_store.json
     build_amp_cabinet_lookup.py   build amp → Matched Cabinet Pro lookup table
-    build_crp_lookup.py           build Control Room Pro enum lookup → crp_enum_lookup.json
+    build_crp_lookup.py           validate Control Room Pro enum lookup
     check_pipeline.py             verify all pipeline artefacts exist
     diagnose_pipeline.py          detailed pipeline diagnostic with intermediate outputs
 
-tests/                    329 tests, all passing
+tests/                    pytest test suite
 notebooks/marimo/         8 exploration and evaluation notebooks
 data/
     external/presets/     1425 factory .ngrr presets (source data, read-only)
@@ -269,21 +270,44 @@ data/
 
 ---
 
+## Prerequisites
+
+- **Python 3.13+** and [uv](https://docs.astral.sh/uv/)
+- **Anthropic API key** — get one at [console.anthropic.com](https://console.anthropic.com/)
+- **Guitar Rig 7** — required both to use generated presets and to source the factory preset
+  library for the offline data pipeline
+
+---
+
 ## Setup
 
 ```bash
 git clone https://github.com/davesfraser/tone-def
-cd tonedef
-
+cd tone-def
 uv sync
-
-cp .env.example .env
-# Add ANTHROPIC_API_KEY to .env
-
-uv run streamlit run app.py
 ```
 
-To rebuild the data pipeline from scratch (requires the factory presets and GR7 manual PDF):
+### Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set:
+
+- `ANTHROPIC_API_KEY` — your Anthropic API key
+- `GR7_PRESETS_DIR` — path to the directory containing Guitar Rig 7 factory `.ngrr` presets
+  - **Windows**: `C:\Program Files\Common Files\Native Instruments\Guitar Rig 7\Rack Presets`
+  - **macOS**: `/Library/Application Support/Native Instruments/Guitar Rig 7/Rack Presets`
+
+### Download the Guitar Rig 7 manual
+
+Download the [Guitar Rig 7 manual PDF](https://www.native-instruments.com/fileadmin/ni_media/downloads/manuals/gr7/Guitar_Rig_7_Manual_English_07_09_23.pdf)
+and save it to `data/external/` with the filename `Guitar_Rig_7_Manual_English_07_09_23.pdf`.
+
+### Build the data pipeline
+
+Run scripts in this order (each depends on the previous):
 
 ```bash
 uv run python scripts/build_component_schema.py
@@ -292,6 +316,15 @@ uv run python scripts/build_manual_chunks.py
 uv run python scripts/build_retrieval_index.py
 uv run python scripts/build_exemplar_index.py
 uv run python scripts/build_amp_cabinet_lookup.py
+uv run python scripts/build_crp_lookup.py
+uv run python scripts/build_parameter_annotations.py
+```
+
+### Verify and run
+
+```bash
+uv run python scripts/check_pipeline.py   # all green = ready
+uv run streamlit run app.py
 ```
 
 ---
@@ -305,3 +338,12 @@ uv run python scripts/build_amp_cabinet_lookup.py
   without it
 - **Multi-platform support**: extend preset generation to other amp emulation software (Helix
   Native, Amplitube, BIAS FX) by abstracting the binary builder and component schema layers
+
+---
+
+## Acknowledgements
+
+- **[Ali Jamieson](https://alijamieson.co.uk/2022/12/29/guitar-rig-6-equivalencies-updated-for-2022/)**
+  — hardware equivalency mappings that informed the CRP cabinet naming in `crp_enum_lookup.json`
+- **[Native Instruments](https://www.native-instruments.com/)** — Guitar Rig 7 and the factory
+  preset library that powers the exemplar retrieval pipeline

@@ -11,17 +11,22 @@ Run once before using exemplar retrieval in map_components():
 """
 
 import json
+from pathlib import Path
 
 from tonedef.exemplar_store import build_exemplar_records
-from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
+from tonedef.paths import DATA_PROCESSED
+from tonedef.settings import settings
 
-_PRESETS_DIR = DATA_EXTERNAL / "presets"
+_PRESETS_DIR = Path(settings.gr7_presets_dir)
 _TAG_CATALOGUE_PATH = DATA_PROCESSED / "tag_catalogue.json"
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _OUTPUT_PATH = DATA_PROCESSED / "exemplar_store.json"
 
 
 def main() -> None:
+    if not _PRESETS_DIR.exists():
+        print("ERROR: GR7_PRESETS_DIR not set or does not exist — see .env.example")
+        raise SystemExit(1)
     tag_catalogue: list[dict] = json.loads(_TAG_CATALOGUE_PATH.read_text(encoding="utf-8"))
     schema: dict = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
 

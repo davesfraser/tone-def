@@ -1,0 +1,47 @@
+{
+  "cabinets": {
+    "0":  {"name": "DI Box",               "description": "Direct inject — no cabinet simulation"},
+    "1":  {"name": "Nothing",              "description": "No cabinet — bypass"},
+    "2":  {"name": "2x12 AC Silver",        "description": "Vox AC30 — Silver Alnico speakers"},
+    "3":  {"name": "2x12 AC Blue",          "description": "Vox AC30 — Blue Bulldog speakers"},
+    "4":  {"name": "4x12 Citrus",           "description": "Orange PPC412 — Celestion V30s"},
+    "5":  {"name": "4x12 Gratifier",        "description": "Mesa Rectifier 4x12 — V30s"},
+    "6":  {"name": "4x12 High White",       "description": "Hiwatt SE4123 — Fane speakers"},
+    "7":  {"name": "4x12 UK 60s Green",     "description": "Marshall 1960 — Celestion G12Ms / Greenbacks"},
+    "8":  {"name": "4x12 UK 70s Black",     "description": "Marshall 1960 — Celestion V30s"},
+    "9":  {"name": "4x12 UK 70s White",     "description": "Marshall 1960 Basketweave — Celestion G12Ls"},
+    "10": {"name": "4x12 UK 80s Black",     "description": "Marshall 1960 — JBL K120s"},
+    "11": {"name": "4x12 UK 80s White",     "description": "Marshall 1960 — Celestion G12T-75s"},
+    "12": {"name": "4x12 Hot Solo+ A",      "description": "Soldano 412B — Eminence S12Xs"},
+    "13": {"name": "4x12 Hot Solo+ B",      "description": "Soldano 412B — Eminence Legend"},
+    "14": {"name": "2x12 Jazz",             "description": "Roland JC-120 speakers"},
+    "15": {"name": "2x12 Twang",            "description": "Fender Twin — Jensen C12Ns"},
+    "16": {"name": "2x15 Twang",            "description": "Fender Dual Showman — JBL D130s"},
+    "17": {"name": "4x10 Tweed",            "description": "Fender Bassman — Jensen P10Qs"},
+    "18": {"name": "1x12 Tweed",            "description": "Fender Tweed Deluxe — Jensen P12R"},
+    "19": {"name": "4x12 Ultra A",          "description": "Bogner Uberkab — Celestion G12T"},
+    "20": {"name": "4x12 Ultra B",          "description": "Bogner Uberkab — Celestion Vintage 30s"},
+    "21": {"name": "4x12 Van 51",           "description": "Peavey 5150 — Sheffield speakers"},
+    "22": {"name": "8x10 Bass Pro",         "description": "Ampeg SVT-810 speakers"},
+    "23": {"name": "4x10 Bass Alu",         "description": "Hartke 4.5XL — Aluminum 10s"},
+    "24": {"name": "1x15 Bass Vintage",     "description": "Supro Thunderbolt — Jensen speaker"},
+    "25": {"name": "2x12 American",         "description": "Fender-style 2x12"},
+    "26": {"name": "2x12 British",          "description": "Vox AC30-style 2x12"},
+    "27": {"name": "4x12 Vintage",          "description": "Marshall JTM50 4x12 — 75W"},
+    "28": {"name": "4x12 Modern",           "description": "ENGL E412VG"},
+    "29": {"name": "4x12 Rammfire A",       "description": "Mesa Rectifier 4x12 — variant A"},
+    "30": {"name": "4x12 Rammfire B",       "description": "Mesa Rectifier 4x12 — variant B"}
+  },
+  "microphones": {
+    "0": {"name": "Rib 121",   "description": "Royer R-121 — ribbon, warm/smooth top end"},
+    "1": {"name": "Dyn 57",    "description": "Shure SM57 — dynamic, the industry standard for guitar cabs"},
+    "2": {"name": "Con 87",    "description": "Neumann U87 — condenser, detailed high end"},
+    "3": {"name": "Rib 160",   "description": "Beyerdynamic M160 — ribbon, tight pattern"},
+    "4": {"name": "Dyn 421",   "description": "Sennheiser MD421 — dynamic, full-range"}
+  },
+  "mic_positions": {
+    "0": {"name": "Cap",       "description": "On the dust cap — brightest"},
+    "1": {"name": "Cap Edge",  "description": "Edge of dust cap — balanced"},
+    "2": {"name": "Cone",      "description": "On the cone — darkest / warmest"}
+  }
+}

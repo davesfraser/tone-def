@@ -10,6 +10,7 @@ Usage:
 
 import json
 import sys
+from pathlib import Path
 
 from tonedef.ngrr_parser import (
     extract_preset_name,
@@ -18,9 +19,13 @@ from tonedef.ngrr_parser import (
     merge_into_catalogue,
     parse_non_fix_components,
 )
-from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
+from tonedef.paths import DATA_PROCESSED
+from tonedef.settings import settings
 
-PRESET_FILE_PATH = DATA_EXTERNAL / "presets"
+PRESET_FILE_PATH = Path(settings.gr7_presets_dir)
+if not PRESET_FILE_PATH.exists():
+    print("ERROR: GR7_PRESETS_DIR not set or does not exist — see .env.example")
+    sys.exit(1)
 DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
 output_path = DATA_PROCESSED / "component_schema.json"
 

@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
+from tonedef.settings import settings
 
 # ---------------------------------------------------------------------------
 # Expected artefacts
@@ -88,7 +89,9 @@ WARN = "\033[33m!\033[0m"
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 _SRC_DIR = _SCRIPTS_DIR.parent / "src" / "tonedef"
-_PRESETS_DIR = DATA_EXTERNAL / "presets"
+_PRESETS_DIR = (
+    Path(settings.gr7_presets_dir) if settings.gr7_presets_dir else DATA_EXTERNAL / "presets"
+)
 
 
 def _newest_mtime(*paths: Path) -> float:

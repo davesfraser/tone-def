@@ -53,6 +53,8 @@ data/external/*
 !data/raw/.gitkeep
 !data/interim/.gitkeep
 !data/processed/.gitkeep
+!data/processed/crp_enum_lookup.json
+!data/processed/tonal_descriptors.json
 !data/external/.gitkeep
 !data/external/Blank_template.ngrr
 

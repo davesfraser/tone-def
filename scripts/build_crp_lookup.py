@@ -1,8 +1,12 @@
 # applied-skills: ds-workflow
-"""One-time migration: extract CRP enum tables to crp_enum_lookup.json.
+"""Validate the hand-curated CRP enum lookup.
 
-The data already exists in data/processed/crp_enum_lookup.json (committed).
-This script regenerates it from scratch if needed and validates the result.
+The CRP (Control Room Pro) enum data in data/processed/crp_enum_lookup.json
+is static reference data derived from the Guitar Rig 7 Control Room Pro UI.
+Cabinet naming is informed by Ali Jamieson's hardware equivalency mappings.
+
+This script validates the file against expected counts and structure.
+It does not generate the data — the file is hand-curated and committed.
 
 Usage:
     uv run python scripts/build_crp_lookup.py
@@ -12,7 +16,7 @@ from __future__ import annotations
 
 from tonedef.crp_lookup import _CRP_LOOKUP_PATH, load_crp_enums
 
-EXPECTED_CABINET_COUNT = 29  # 0-28
+EXPECTED_CABINET_COUNT = 31  # 0-30
 EXPECTED_MIC_COUNT = 5  # 0-4
 EXPECTED_MPOS_COUNT = 3  # 0-2
 
@@ -66,5 +70,5 @@ if __name__ == "__main__":
         validate()
     else:
         print(f"ERROR: {_CRP_LOOKUP_PATH} does not exist.")
-        print("Create it manually or copy the template from the repository.")
+        print("This is hand-curated reference data — it should be committed in data/processed/.")
         raise SystemExit(1)

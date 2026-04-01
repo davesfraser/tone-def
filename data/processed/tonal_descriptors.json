@@ -1,0 +1,610 @@
+{
+  "_meta": {
+    "zones": {
+      "pre_amp": { "label": "Drive & Gain", "icon": "🎸" },
+      "amp": { "label": "Amp Character", "icon": "🔊" },
+      "cabinet": { "label": "Cabinet", "icon": "📦" },
+      "room_mic": { "label": "Room & Mic", "icon": "🎙️" },
+      "post_cab": { "label": "Effects & Space", "icon": "✨" }
+    },
+    "groups": {
+      "pre_amp": {
+        "Gain Amount": "How much drive and overdrive",
+        "Drive Character": "How the drive feels when you play",
+        "Low End": "Bass tightness before it hits the amp"
+      },
+      "amp": {
+        "Tone Balance": "Overall brightness and top-end character",
+        "Mid Range": "Where the mids sit in the mix",
+        "Gain Behavior": "How the amp breaks up and distorts",
+        "Power Response": "How the power section feels and responds"
+      },
+      "cabinet": {
+        "Cabinet Voicing": "Open vs closed cabinet character",
+        "Speaker Character": "The tone of the speaker and enclosure"
+      },
+      "room_mic": {
+        "Mic Placement": "How close the microphone is to the speaker",
+        "Room Character": "The space and ambience around the cabinet",
+        "Mic Tone": "The tonal character of the microphone itself"
+      },
+      "post_cab": {
+        "Spatial Amount": "How much reverb and delay",
+        "Spatial Character": "What the space and reflections sound like",
+        "Signal Processing": "Overall signal quality and character",
+        "Dynamics": "Compression, punch, and dynamic range"
+      }
+    }
+  },
+  "pre_amp": [
+    {
+      "term": "cleaner",
+      "group": "Gain Amount",
+      "ui_label": "Cleaner",
+      "ui_description": "Pulls back the overdrive. More headroom, less grit.",
+      "affects": ["drive", "gain", "overdrive"],
+      "direction": "-",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Decrease drive/gain — pull back overdrive or reduce amp input"
+    },
+    {
+      "term": "grittier",
+      "group": "Gain Amount",
+      "ui_label": "Grittier",
+      "ui_description": "Pushes the overdrive harder. Crunchier, more saturated.",
+      "affects": ["drive", "gain", "overdrive"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Increase drive staging — push amp harder or add overdrive pedal gain"
+    },
+    {
+      "term": "fuzzier",
+      "group": "Gain Amount",
+      "ui_label": "Fuzzier",
+      "ui_description": "Thick, woolly fuzz saturation. Think Big Muff or Fuzz Face.",
+      "affects": ["drive", "gain", "fuzz"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "0.20–0.35",
+      "rationale": "Heavy fuzz saturation — add or increase fuzz pedal, beyond overdrive territory"
+    },
+    {
+      "term": "smoother",
+      "group": "Drive Character",
+      "ui_label": "Smoother",
+      "ui_description": "Softer clipping edges, less bite. Rolls off the harshness.",
+      "affects": ["drive", "tone"],
+      "direction": "-",
+      "magnitude": "small",
+      "delta": "0.05–0.15",
+      "rationale": "Roll back drive/tone to soften clipping edges"
+    },
+    {
+      "term": "more aggressive",
+      "group": "Drive Character",
+      "ui_label": "More Aggressive",
+      "ui_description": "Hot-rodded front end. Harder clipping, tighter attack.",
+      "affects": ["drive", "gain", "presence"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "0.15–0.25",
+      "rationale": "Hot-rod the front end — more clipping, tighter attack"
+    },
+    {
+      "term": "sparkly",
+      "group": "Drive Character",
+      "ui_label": "Sparkly",
+      "ui_description": "Bright, touch-sensitive shimmer in the clean-to-edge range.",
+      "affects": ["drive", "tone", "treble"],
+      "direction": "+treble, low drive",
+      "magnitude": "small",
+      "delta": "0.05–0.10",
+      "rationale": "Light touch sensitivity with high-frequency shimmer — clean boost with treble emphasis"
+    },
+    {
+      "term": "tighter",
+      "group": "Low End",
+      "ui_label": "Tighter",
+      "ui_description": "Cuts low-end flub before the amp. Punchier, more focused bass.",
+      "affects": ["bass", "low_cut"],
+      "direction": "-",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Reduce low-end flub before the amp — cut bass on overdrive or add low-cut"
+    }
+  ],
+  "amp": [
+    {
+      "term": "brighter",
+      "group": "Tone Balance",
+      "ui_label": "Brighter",
+      "ui_description": "More treble and presence. Cuts through the mix more.",
+      "affects": ["treble", "presence"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Increase treble/presence controls on the amp"
+    },
+    {
+      "term": "darker",
+      "group": "Tone Balance",
+      "ui_label": "Darker",
+      "ui_description": "Less top-end bite. Warmer, rounder, less harsh.",
+      "affects": ["treble", "presence"],
+      "direction": "-",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Decrease treble/presence — warmer, less top-end bite"
+    },
+    {
+      "term": "warmer",
+      "group": "Tone Balance",
+      "ui_label": "Warmer",
+      "ui_description": "Thicker, rounder tone. Less treble, more mid and bass.",
+      "affects": ["treble", "mid", "bass"],
+      "direction": "treble-, mid+, bass+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Decrease treble, bump mid and bass for thicker, rounder tone"
+    },
+    {
+      "term": "chimey",
+      "group": "Tone Balance",
+      "ui_label": "Chimey",
+      "ui_description": "High-frequency sparkle and ring. Think Vox AC30 top-boost.",
+      "affects": ["treble", "presence", "bright_switch"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "High-frequency sparkle — think Vox AC30 top-boost character"
+    },
+    {
+      "term": "scooped",
+      "group": "Mid Range",
+      "ui_label": "Scooped",
+      "ui_description": "Cut mids heavily. V-shaped EQ — big lows and highs, thin middle.",
+      "affects": ["mid"],
+      "direction": "-",
+      "magnitude": "large",
+      "delta": "0.15–0.30",
+      "rationale": "Cut mids heavily — aggressive V-shaped EQ (metal, hard rock)"
+    },
+    {
+      "term": "mid-forward",
+      "group": "Mid Range",
+      "ui_label": "Mid-forward",
+      "ui_description": "Push the mids up. Cuts through a band mix. Blues, classic rock.",
+      "affects": ["mid"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Push mids for cutting through a mix — blues, classic rock"
+    },
+    {
+      "term": "honky",
+      "group": "Mid Range",
+      "ui_label": "Honky",
+      "ui_description": "Nasal, focused mid-range peak. Wah-like resonance.",
+      "affects": ["mid", "mid_frequency"],
+      "direction": "+narrow",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Narrow mid-range boost for nasal, wah-like resonance — focused midrange character"
+    },
+    {
+      "term": "crunchy",
+      "group": "Gain Behavior",
+      "ui_label": "Crunchy",
+      "ui_description": "Edge of breakup. Amp just starting to clip on pick attack.",
+      "affects": ["gain", "master_volume"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Edge-of-breakup — amp just starting to clip on pick attack"
+    },
+    {
+      "term": "liquid",
+      "group": "Gain Behavior",
+      "ui_label": "Liquid",
+      "ui_description": "Smooth, singing sustain. High gain with prominent mids — notes flow.",
+      "affects": ["gain", "mid"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "0.15–0.25",
+      "rationale": "Smooth sustaining lead — high gain with prominent mids, notes sing"
+    },
+    {
+      "term": "glassy",
+      "group": "Gain Behavior",
+      "ui_label": "Glassy",
+      "ui_description": "Crystal-clear clean, hi-fi clarity. Fender Twin or Roland JC territory.",
+      "affects": ["gain", "treble", "master_volume"],
+      "direction": "gain-, treble+",
+      "magnitude": "medium",
+      "delta": "gain low, treble 0.10–0.20",
+      "rationale": "Very clean, hi-fi clarity — no breakup, crisp Fender/Roland-style headroom"
+    },
+    {
+      "term": "raw",
+      "group": "Gain Behavior",
+      "ui_label": "Raw",
+      "ui_description": "Untamed, unprocessed character. Zero polish, all attitude.",
+      "affects": ["gain", "eq"],
+      "direction": "neutral",
+      "magnitude": "medium",
+      "delta": "minimal processing",
+      "rationale": "Unprocessed, no-BS character — minimal EQ shaping, amp does the talking"
+    },
+    {
+      "term": "saggy",
+      "group": "Power Response",
+      "ui_label": "Saggy",
+      "ui_description": "Loose, blooming response. Notes swell and compress naturally. Vintage.",
+      "affects": ["bias", "power_supply"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Loose power amp response — notes bloom and compress naturally, vintage feel"
+    },
+    {
+      "term": "stiff",
+      "group": "Power Response",
+      "ui_label": "Stiff",
+      "ui_description": "Tight, immediate response. Fast transients, modern feel.",
+      "affects": ["bias", "power_supply"],
+      "direction": "-",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Tight, immediate power amp response — fast transients, modern feel"
+    }
+  ],
+  "cabinet": [
+    {
+      "term": "tight",
+      "group": "Cabinet Voicing",
+      "ui_label": "Tight",
+      "ui_description": "Closed-back cabinet. Focused, punchy low end. Fast response.",
+      "affects": ["cabinet_type", "speaker_cone"],
+      "direction": "closed-back, smaller cone",
+      "magnitude": "selection",
+      "delta": "component swap",
+      "rationale": "Closed-back cab — focused, punchy low end with fast transient response"
+    },
+    {
+      "term": "loose",
+      "group": "Cabinet Voicing",
+      "ui_label": "Loose",
+      "ui_description": "Open-back cabinet. Wider, airier low end. More room interaction.",
+      "affects": ["cabinet_type"],
+      "direction": "open-back",
+      "magnitude": "selection",
+      "delta": "component swap",
+      "rationale": "Open-back cab — wider, less focused low end with more natural room interaction"
+    },
+    {
+      "term": "woody",
+      "group": "Speaker Character",
+      "ui_label": "Woody",
+      "ui_description": "Organic, resonant tone. Alnico speakers, warm low-mids.",
+      "affects": ["cabinet_type", "speaker"],
+      "direction": "open-back, alnico speakers",
+      "magnitude": "selection",
+      "delta": "component swap",
+      "rationale": "Organic, resonant tone — open-back with alnico speakers, warm low-mids"
+    },
+    {
+      "term": "papery",
+      "group": "Speaker Character",
+      "ui_label": "Papery",
+      "ui_description": "Thin, vintage speaker character. Old worn cones, low headroom.",
+      "affects": ["speaker_type"],
+      "direction": "vintage speakers, low power",
+      "magnitude": "selection",
+      "delta": "component swap",
+      "rationale": "Thin, vintage speaker character — old Jensens, worn cones, low headroom"
+    },
+    {
+      "term": "boxy",
+      "group": "Speaker Character",
+      "ui_label": "Boxy",
+      "ui_description": "Prominent mid-range resonance from a small closed cab. Can be nasal.",
+      "affects": ["cabinet_size", "mid_resonance"],
+      "direction": "small closed cab",
+      "magnitude": "selection",
+      "delta": "component swap",
+      "rationale": "Small closed cab with prominent mid-range resonance — typically undesirable, reduce with EQ"
+    },
+    {
+      "term": "thuddy",
+      "group": "Speaker Character",
+      "ui_label": "Thuddy",
+      "ui_description": "Deep, heavy low-end thump. Large 4x12 closed-back, big speakers.",
+      "affects": ["cabinet_size", "speaker"],
+      "direction": "large closed cab",
+      "magnitude": "selection",
+      "delta": "component swap",
+      "rationale": "Deep, heavy low-end thump — large 4x12 closed-back, high-wattage speakers"
+    }
+  ],
+  "room_mic": [
+    {
+      "term": "close-miked",
+      "group": "Mic Placement",
+      "ui_label": "Close-miked",
+      "ui_description": "Mic right on the speaker. Maximum direct sound, minimal room.",
+      "affects": ["mic_distance", "room_mix"],
+      "direction": "-",
+      "magnitude": "large",
+      "delta": "MCP X-Fade minimal (mic on grille) / CRP mic on cap, room_mix minimal",
+      "rationale": "Mic right on the speaker — maximum direct sound, minimal room"
+    },
+    {
+      "term": "present",
+      "group": "Mic Placement",
+      "ui_label": "Present",
+      "ui_description": "Clear and upfront without being harsh. Balanced mic placement.",
+      "affects": ["mic_position", "mic_type"],
+      "direction": "cap edge, dynamic or condenser",
+      "magnitude": "selection",
+      "delta": "MPos → Cap Edge, Mic → Dyn 57 or Con 87",
+      "rationale": "Clear and upfront without being harsh — balanced mic placement"
+    },
+    {
+      "term": "distant",
+      "group": "Mic Placement",
+      "ui_label": "Distant",
+      "ui_description": "Mic pulled back. More room character, softer transients, natural depth.",
+      "affects": ["mic_distance", "room_size"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "MCP X-Fade +0.20–0.40 / CRP mic on cone, room_size +0.20–0.30",
+      "rationale": "Mic pulled back — more room character, softer transients, natural depth"
+    },
+    {
+      "term": "intimate",
+      "group": "Room Character",
+      "ui_label": "Intimate",
+      "ui_description": "Close, dry space. Small room, mic tight on the speaker.",
+      "affects": ["room_size", "mic_distance"],
+      "direction": "-",
+      "magnitude": "medium",
+      "delta": "MCP X-Fade -0.05–0.10 / CRP room_size -0.10–0.20, mic closer",
+      "rationale": "Close, dry space — small room, mic tight on the speaker"
+    },
+    {
+      "term": "roomy",
+      "group": "Room Character",
+      "ui_label": "Roomy",
+      "ui_description": "Prominent room sound. Hear the space around the cabinet.",
+      "affects": ["room_size", "room_mix"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "MCP X-Fade +0.15–0.30 / CRP room_size +0.15–0.30, room_mix +0.10–0.20",
+      "rationale": "Prominent room sound — larger CRP room, more room mic blend"
+    },
+    {
+      "term": "live-room",
+      "group": "Room Character",
+      "ui_label": "Live-room",
+      "ui_description": "Large reflective space. Natural ambience, like a live tracking room.",
+      "affects": ["room_size", "room_reflections"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "MCP X-Fade +0.25–0.50 / CRP room_size +0.20–0.40",
+      "rationale": "Large reflective space — think live tracking room with natural ambience"
+    },
+    {
+      "term": "dead-room",
+      "group": "Room Character",
+      "ui_label": "Dead-room",
+      "ui_description": "Heavily treated room. No reflections, very dry cabinet tone.",
+      "affects": ["room_size", "room_reflections"],
+      "direction": "-",
+      "magnitude": "large",
+      "delta": "MCP X-Fade minimal / CRP room_size minimal, room_mix minimal",
+      "rationale": "Heavily treated room — absorptive, no reflections, very dry cabinet tone"
+    },
+    {
+      "term": "air",
+      "group": "Room Character",
+      "ui_label": "Air",
+      "ui_description": "Natural room ambience and high-frequency shimmer. The sound of space around the cabinet — not reverb.",
+      "affects": ["room_size", "mic_distance", "high_shelf"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "MCP X-Fade +0.10–0.20 / CRP room_size +0.10–0.20, high shelf +0.05–0.15",
+      "rationale": "Natural room ambience and high-frequency shimmer — increase CRP room size, move mic back slightly, boost high shelf. Not the same as reverb — air is the sound of the physical space around the cabinet"
+    },
+    {
+      "term": "silky",
+      "group": "Mic Tone",
+      "ui_label": "Silky",
+      "ui_description": "Smooth, rolled-off top end. Ribbon mic character — tames harshness.",
+      "affects": ["mic_type"],
+      "direction": "ribbon microphone",
+      "magnitude": "selection",
+      "delta": "Mic → Rib 121 or Rib 160",
+      "rationale": "Smooth, rolled-off top end — ribbon mic character, tames harshness"
+    },
+    {
+      "term": "aggressive",
+      "group": "Mic Tone",
+      "ui_label": "Aggressive Mic",
+      "ui_description": "Bright, forward, biting. SM57 right on the dust cap — maximum attack.",
+      "affects": ["mic_type", "mic_position"],
+      "direction": "dynamic on-cap",
+      "magnitude": "selection",
+      "delta": "Mic → Dyn 57, MPos → Cap",
+      "rationale": "Bright, forward, present — SM57 on dust cap, maximum bite"
+    },
+    {
+      "term": "smooth",
+      "group": "Mic Tone",
+      "ui_label": "Smooth Mic",
+      "ui_description": "Gentle top end. Ribbon or condenser pulled off-cap for a softer sound.",
+      "affects": ["mic_type", "mic_position"],
+      "direction": "ribbon or off-cap",
+      "magnitude": "selection",
+      "delta": "Mic → Rib 121, MPos → Cap Edge or Cone",
+      "rationale": "Gentle top end — ribbon or condenser pulled off-cap"
+    },
+    {
+      "term": "detailed",
+      "group": "Mic Tone",
+      "ui_label": "Detailed",
+      "ui_description": "Extended high-frequency response. Condenser captures every nuance.",
+      "affects": ["mic_type"],
+      "direction": "condenser",
+      "magnitude": "selection",
+      "delta": "Mic → Con 87",
+      "rationale": "Extended high-frequency response — condenser captures nuance and detail"
+    }
+  ],
+  "post_cab": [
+    {
+      "term": "more ambient",
+      "group": "Spatial Amount",
+      "ui_label": "More Ambient",
+      "ui_description": "More reverb and space around the guitar. Lusher, wetter.",
+      "affects": ["reverb_mix", "reverb_decay"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Increase reverb mix and/or decay — more space around the guitar"
+    },
+    {
+      "term": "drier",
+      "group": "Spatial Amount",
+      "ui_label": "Drier",
+      "ui_description": "Less reverb and delay. Tighter, more direct, in-your-face.",
+      "affects": ["reverb_mix", "delay_mix"],
+      "direction": "-",
+      "magnitude": "medium",
+      "delta": "0.10–0.20 or remove effect",
+      "rationale": "Decrease reverb/delay mix — or remove spatial effects entirely"
+    },
+    {
+      "term": "bigger",
+      "group": "Spatial Character",
+      "ui_label": "Bigger",
+      "ui_description": "Longer reverb tail, more pre-delay. Sounds like a larger space.",
+      "affects": ["reverb_decay", "reverb_predelay"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "0.15–0.25",
+      "rationale": "Longer reverb tail with more pre-delay — sounds like a larger space"
+    },
+    {
+      "term": "washy",
+      "group": "Spatial Character",
+      "ui_label": "Washy",
+      "ui_description": "Blurred, atmospheric. High delay feedback and reverb — ambient territory.",
+      "affects": ["delay_feedback", "delay_mix", "reverb_mix"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "0.15–0.25",
+      "rationale": "Blurred, atmospheric — high delay feedback and reverb mix, ambient territory"
+    },
+    {
+      "term": "lush",
+      "group": "Spatial Character",
+      "ui_label": "Lush",
+      "ui_description": "Rich, enveloping texture. Modulation and reverb adding movement.",
+      "affects": ["chorus_mix", "reverb_mix", "modulation_depth"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Rich, enveloping texture — modulation and/or reverb adding movement"
+    },
+    {
+      "term": "shimmery",
+      "group": "Spatial Character",
+      "ui_label": "Shimmery",
+      "ui_description": "Modulated or pitch-shifted reverb. Ethereal high-end sparkle.",
+      "affects": ["reverb_mix", "modulation", "pitch_shift"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Modulated reverb or pitch-shifted reflections — ethereal high-end sparkle, ambient guitar"
+    },
+    {
+      "term": "slapback",
+      "group": "Spatial Character",
+      "ui_label": "Slapback",
+      "ui_description": "Short delay ~80-150ms. Rockabilly, country, vintage vibe.",
+      "affects": ["delay_time", "delay_mix", "delay_feedback"],
+      "direction": "short delay, low feedback",
+      "magnitude": "medium",
+      "delta": "delay 80–150ms, feedback minimal",
+      "rationale": "Short delay ~80-150ms with minimal feedback — rockabilly, country, vintage feel"
+    },
+    {
+      "term": "pristine",
+      "group": "Signal Processing",
+      "ui_label": "Pristine",
+      "ui_description": "Clean, uncoloured effects. Minimal processing artefacts, hi-fi.",
+      "affects": ["effects_mix"],
+      "direction": "-",
+      "magnitude": "small",
+      "delta": "0.05–0.10",
+      "rationale": "Clean, uncoloured effects — minimal processing artefacts, hi-fi character"
+    },
+    {
+      "term": "lo-fi",
+      "group": "Signal Processing",
+      "ui_label": "Lo-fi",
+      "ui_description": "Degraded signal quality. Bit reduction, sample rate crunch, tape hiss.",
+      "affects": ["bit_depth", "sample_rate", "saturation"],
+      "direction": "+",
+      "magnitude": "large",
+      "delta": "component add",
+      "rationale": "Degraded signal quality — bit reduction, sample rate reduction, or tape saturation"
+    },
+    {
+      "term": "tape-saturated",
+      "group": "Signal Processing",
+      "ui_label": "Tape-saturated",
+      "ui_description": "Warm compression and soft harmonics. Tape machine character.",
+      "affects": ["saturation", "compression"],
+      "direction": "+",
+      "magnitude": "medium",
+      "delta": "0.10–0.20",
+      "rationale": "Warm compression and soft harmonics — tape machine character"
+    },
+    {
+      "term": "more compressed",
+      "group": "Dynamics",
+      "ui_label": "More Compressed",
+      "ui_description": "Higher ratio, lower threshold. More sustain, less dynamic range.",
+      "affects": ["ratio", "threshold"],
+      "direction": "+ratio, -threshold",
+      "magnitude": "medium",
+      "delta": "ratio +0.10–0.20, threshold -0.10–0.20",
+      "rationale": "Increase compression — higher ratio, lower threshold, more gain reduction"
+    },
+    {
+      "term": "more open",
+      "group": "Dynamics",
+      "ui_label": "More Open",
+      "ui_description": "Less compression. More dynamic range, more touch sensitivity.",
+      "affects": ["ratio", "threshold", "compression"],
+      "direction": "-ratio, +threshold",
+      "magnitude": "medium",
+      "delta": "ratio -0.10–0.20, threshold +0.10–0.20",
+      "rationale": "Reduce compression — lower ratio, higher threshold, more dynamic range"
+    },
+    {
+      "term": "punchier",
+      "group": "Dynamics",
+      "ui_label": "Punchier",
+      "ui_description": "Attack-focused compression. Fast response that emphasises the snap.",
+      "affects": ["attack", "ratio"],
+      "direction": "fast attack, moderate ratio",
+      "magnitude": "medium",
+      "delta": "attack -0.10–0.15, ratio +0.05–0.10",
+      "rationale": "Attack-focused compression — fast response emphasises transient snap"
+    }
+  ]
+}

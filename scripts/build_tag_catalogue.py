@@ -20,6 +20,7 @@ Usage:
 import json
 import sys
 from collections import Counter
+from pathlib import Path
 
 from tonedef.ngrr_parser import (
     extract_xml1,
@@ -27,10 +28,14 @@ from tonedef.ngrr_parser import (
     merge_tags_into_catalogue,
     parse_preset_metadata,
 )
-from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
+from tonedef.paths import DATA_PROCESSED
+from tonedef.settings import settings
 
 DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
-PRESET_FILE_PATH = DATA_EXTERNAL / "presets"
+PRESET_FILE_PATH = Path(settings.gr7_presets_dir)
+if not PRESET_FILE_PATH.exists():
+    print("ERROR: GR7_PRESETS_DIR not set or does not exist — see .env.example")
+    sys.exit(1)
 output_path = DATA_PROCESSED / "tag_catalogue.json"
 
 print("Building tag catalogue")
