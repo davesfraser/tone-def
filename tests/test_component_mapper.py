@@ -200,18 +200,10 @@ def test_build_component_schema_context_missing_name() -> None:
 
 _AMP_CABINET_LOOKUP = {
     "Lead 800": {
-        "cabinet_component_name": "Matched Cabinet Pro",
-        "cabinet_component_id": 156000,
         "cab_value": 10,
-        "evidence_count": 5,
-        "evidence_total": 5,
     },
     "AC Box XV": {
-        "cabinet_component_name": "Matched Cabinet Pro",
-        "cabinet_component_id": 156000,
         "cab_value": 0,
-        "evidence_count": 3,
-        "evidence_total": 3,
     },
 }
 
@@ -296,10 +288,11 @@ def test_make_matched_cabinet_pro_name() -> None:
 
 
 def test_make_matched_cabinet_pro_sets_cab_from_lookup() -> None:
+    """When no LLM or exemplar params, Cab stays at schema default."""
     result = _make_matched_cabinet_pro(
         "Lead 800", _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, "preset"
     )
-    assert result["parameters"]["Cab"] == 10
+    assert result["parameters"]["Cab"] == 0  # schema default
 
 
 def test_make_matched_cabinet_pro_defaults_when_no_amp() -> None:
@@ -322,7 +315,7 @@ def test_make_matched_cabinet_pro_base_exemplar() -> None:
 
 
 def test_make_matched_cabinet_pro_carries_forward_exemplar_params() -> None:
-    """Non-Cab params from the LLM-emitted cabinet override schema defaults."""
+    """Non-Cab params from the exemplar override schema defaults; Cab too."""
     exemplar_params = {"Vol": 0.45, "Cab": 99}
     result = _make_matched_cabinet_pro(
         "Lead 800",
@@ -333,8 +326,8 @@ def test_make_matched_cabinet_pro_carries_forward_exemplar_params() -> None:
     )
     # Vol carried forward from exemplar
     assert result["parameters"]["Vol"] == pytest.approx(0.45)
-    # Cab always overridden by lookup (Lead 800 → 10)
-    assert result["parameters"]["Cab"] == 10
+    # Cab carried forward from exemplar (no longer overridden)
+    assert result["parameters"]["Cab"] == 99
 
 
 def test_make_matched_cabinet_pro_exemplar_params_no_amp() -> None:
@@ -362,7 +355,7 @@ def test_make_matched_cabinet_pro_none_exemplar_params_uses_defaults() -> None:
         exemplar_cabinet_params=None,
     )
     assert result["parameters"]["Vol"] == pytest.approx(0.7)  # schema default
-    assert result["parameters"]["Cab"] == 10  # lookup override
+    assert result["parameters"]["Cab"] == 0  # schema default
 
 
 def test_make_matched_cabinet_pro_llm_overrides_exemplar() -> None:
@@ -379,12 +372,12 @@ def test_make_matched_cabinet_pro_llm_overrides_exemplar() -> None:
     )
     # LLM wins over exemplar for Vol
     assert result["parameters"]["Vol"] == pytest.approx(0.6)
-    # Cab always from lookup
-    assert result["parameters"]["Cab"] == 10
+    # Cab stays from exemplar (LLM didn't set it)
+    assert result["parameters"]["Cab"] == 99
 
 
 def test_make_matched_cabinet_pro_three_tier_layering() -> None:
-    """Schema default < exemplar < LLM < Cab lookup — full chain."""
+    """Schema default < exemplar < LLM — full chain."""
     # Schema has Vol=0.7, Cab=0
     exemplar_params = {"Vol": 0.45}  # overrides schema Vol
     llm_params = {"Vol": 0.8}  # overrides exemplar Vol
@@ -397,7 +390,7 @@ def test_make_matched_cabinet_pro_three_tier_layering() -> None:
         llm_cabinet_params=llm_params,
     )
     assert result["parameters"]["Vol"] == pytest.approx(0.8)  # LLM wins
-    assert result["parameters"]["Cab"] == 10  # lookup wins over everything
+    assert result["parameters"]["Cab"] == 0  # schema default (nobody set Cab)
 
 
 def test_make_matched_cabinet_pro_llm_only_no_exemplar() -> None:
@@ -412,7 +405,7 @@ def test_make_matched_cabinet_pro_llm_only_no_exemplar() -> None:
         llm_cabinet_params=llm_params,
     )
     assert result["parameters"]["Vol"] == pytest.approx(0.55)
-    assert result["parameters"]["Cab"] == 10
+    assert result["parameters"]["Cab"] == 0  # schema default
 
 
 def test_make_matched_cabinet_pro_exemplar_fills_gaps_llm_missed() -> None:
@@ -420,7 +413,7 @@ def test_make_matched_cabinet_pro_exemplar_fills_gaps_llm_missed() -> None:
     # Schema has Vol=0.7 and Cab=0
     # Exemplar sets both
     exemplar_params = {"Vol": 0.45, "Cab": 23}
-    # LLM only set Cab (which lookup will override anyway)
+    # LLM only set Cab
     llm_params = {"Cab": 15}
     result = _make_matched_cabinet_pro(
         "Lead 800",
@@ -432,8 +425,8 @@ def test_make_matched_cabinet_pro_exemplar_fills_gaps_llm_missed() -> None:
     )
     # Vol from exemplar (LLM didn't touch it)
     assert result["parameters"]["Vol"] == pytest.approx(0.45)
-    # Cab from lookup (always wins)
-    assert result["parameters"]["Cab"] == 10
+    # Cab from LLM (LLM wins over exemplar)
+    assert result["parameters"]["Cab"] == 15
 
 
 # ---------------------------------------------------------------------------

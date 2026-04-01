@@ -69,6 +69,18 @@ _ARTIFACT_PATTERNS: list[str] = [
     r"^if ",
 ]
 
+# Component names that belong to "EQ" in GR7 but appear under "Dynamics"
+# in the manual PDF.  Override the inherited section category for these.
+_EQ_COMPONENT_NAMES: frozenset[str] = frozenset(
+    {
+        "Custom EQ",
+        "Equalizer Graphic",
+        "Equalizer Parametric",
+        "Equalizer Shelving",
+        "Solid EQ",
+    }
+)
+
 
 # ---------------------------------------------------------------------------
 # Public helpers
@@ -78,6 +90,18 @@ _ARTIFACT_PATTERNS: list[str] = [
 def is_artifact(line: str) -> bool:
     """Return True if *line* matches a known non-component artifact pattern."""
     return any(re.match(p, line.lower()) for p in _ARTIFACT_PATTERNS)
+
+
+def _resolve_category(component_name: str, section_category: str) -> str:
+    """Return the correct GR7 category for *component_name*.
+
+    The manual PDF nests EQ components inside the Dynamics section, but
+    Guitar Rig 7 treats them as a separate "EQ" component type.  This
+    function overrides the inherited section category when needed.
+    """
+    if component_name in _EQ_COMPONENT_NAMES:
+        return "EQ"
+    return section_category
 
 
 def extract_full_text(pdf_path: Path, start_page: int = COMPONENT_REFERENCE_START_PAGE) -> str:
@@ -139,7 +163,7 @@ def parse_chunks(full_text: str) -> dict[str, dict[str, str]]:
         if stripped in CATEGORY_HEADERS:
             if current_name and not is_artifact(current_name):
                 chunks[current_name] = {
-                    "category": current_category or "",
+                    "category": _resolve_category(current_name, current_category or ""),
                     "text": "\n".join(current_lines).strip(),
                 }
             current_category = stripped
@@ -163,7 +187,7 @@ def parse_chunks(full_text: str) -> dict[str, dict[str, str]]:
         if is_component_start:
             if current_name and not is_artifact(current_name):
                 chunks[current_name] = {
-                    "category": current_category or "",
+                    "category": _resolve_category(current_name, current_category or ""),
                     "text": "\n".join(current_lines).strip(),
                 }
             current_name = stripped
@@ -174,7 +198,7 @@ def parse_chunks(full_text: str) -> dict[str, dict[str, str]]:
     # Final component
     if current_name and not is_artifact(current_name):
         chunks[current_name] = {
-            "category": current_category or "",
+            "category": _resolve_category(current_name, current_category or ""),
             "text": "\n".join(current_lines).strip(),
         }
 

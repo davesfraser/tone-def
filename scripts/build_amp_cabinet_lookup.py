@@ -65,10 +65,9 @@ def _build_lookup(store: list[dict], amp_names: set[str]) -> dict[str, dict]:
             cn_lower = c["component_name"].lower()
             if cn_lower not in amp_lower_to_names:
                 continue
-            # Register under both the canonical name(s) AND the exact preset name
-            names_to_register = set(amp_lower_to_names[cn_lower])
-            names_to_register.add(c["component_name"])
-            for name in names_to_register:
+            # Register under canonical name(s) only — avoids case-variant
+            # duplicates like "AC BOX XV" vs "AC Box XV".
+            for name in amp_lower_to_names[cn_lower]:
                 amp_cab_counts.setdefault(name, Counter())[cab_value] += 1
 
     lookup: dict[str, dict] = {}
@@ -76,14 +75,9 @@ def _build_lookup(store: list[dict], amp_names: set[str]) -> dict[str, dict]:
         counts = amp_cab_counts[amp_name]
         if not counts:
             continue
-        best_cab, best_count = counts.most_common(1)[0]
-        total = sum(counts.values())
+        best_cab, _ = counts.most_common(1)[0]
         lookup[amp_name] = {
-            "cabinet_component_name": _CABINET_COMPONENT_NAME,
-            "cabinet_component_id": _CABINET_COMPONENT_ID,
             "cab_value": best_cab,
-            "evidence_count": best_count,
-            "evidence_total": total,
         }
 
     return lookup
@@ -93,18 +87,22 @@ def main() -> None:
     store: list[dict] = json.loads(_EXEMPLAR_PATH.read_text(encoding="utf-8"))
     amp_names = _get_amp_names() | _EXTRA_AMP_NAMES
 
-    lookup = _build_lookup(store, amp_names)
+    amps = _build_lookup(store, amp_names)
+
+    output = {
+        "cabinet_component_name": _CABINET_COMPONENT_NAME,
+        "cabinet_component_id": _CABINET_COMPONENT_ID,
+        "amps": amps,
+    }
 
     _OUTPUT_PATH.write_text(
-        json.dumps(lookup, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(output, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
-    print(f"Wrote {len(lookup)} amp entries to {_OUTPUT_PATH}")
-    for amp_name, entry in sorted(lookup.items()):
+    print(f"Wrote {len(amps)} amp entries to {_OUTPUT_PATH}")
+    for amp_name, entry in sorted(amps.items()):
         cab = entry["cab_value"]
-        n = entry["evidence_count"]
-        t = entry["evidence_total"]
-        print(f"  {amp_name:22s}  Cab={cab:<6}  ({n}/{t} presets)")
+        print(f"  {amp_name:22s}  Cab={cab}")
 
 
 if __name__ == "__main__":

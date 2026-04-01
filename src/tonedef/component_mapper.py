@@ -4,9 +4,10 @@ component_mapper.py
 Runtime module that maps a Phase 1 signal chain to Guitar Rig 7 components.
 
 Exemplar-first architecture:
-  1. Retrieve tonally-similar factory presets (exemplars) via ChromaDB
+  1. Retrieve tonally-similar factory presets (exemplars) via the exemplar
+     store (structured scoring)
   2. Retrieve manual descriptions for exemplar components + missing categories
-  3. Load amp-to-cabinet lookup for deterministic cabinet assignment
+  3. Load amp-to-cabinet lookup for cabinet reference
   4. Assemble EXEMPLAR_REFINEMENT_PROMPT with all context
   5. Call the Anthropic API (Phase 2 LLM call)
   6. Parse and validate the JSON response
@@ -68,9 +69,16 @@ def load_schema() -> dict:
 
 
 def load_amp_cabinet_lookup() -> dict[str, dict]:
-    """Load amp_cabinet_lookup.json as a dict keyed by amp component name."""
+    """Load amp_cabinet_lookup.json and return the amp entries dict.
+
+    The JSON has top-level ``cabinet_component_name`` and
+    ``cabinet_component_id`` metadata plus an ``amps`` mapping of
+    amp name → ``{cab_value}``.  This function returns only the
+    ``amps`` dict for backward-compatible keyed access.
+    """
     with open(_AMP_CABINET_LOOKUP_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    return data.get("amps", data)
 
 
 def load_annotations() -> dict[str, dict[str, dict]]:
@@ -223,10 +231,10 @@ def build_cabinet_lookup_context(amp_cabinet_lookup: dict[str, dict]) -> str:
     """
     lines = []
     for amp_name, entry in sorted(amp_cabinet_lookup.items()):
-        cab_name = entry["cabinet_component_name"]
-        cab_id = entry["cabinet_component_id"]
         cab_val = int(entry["cab_value"])
-        lines.append(f"{amp_name} | {cab_name} | {cab_id} | {cab_val}")
+        lines.append(
+            f"{amp_name} | {_MATCHED_CABINET_PRO_NAME} | {_MATCHED_CABINET_PRO_ID} | {cab_val}"
+        )
     return "\n".join(lines) if lines else "(no cabinet lookup available)"
 
 
@@ -289,6 +297,37 @@ def _validate_crp_params(components: list[dict]) -> None:
         for key in list(params):
             if key in _CRP_INTEGER_PARAMS and isinstance(params[key], float):
                 params[key] = int(params[key])
+
+
+def _validate_mcp_params(
+    components: list[dict],
+    amp_cabinet_lookup: dict[str, dict],
+) -> None:
+    """Log warnings for MCP Cab values that diverge from the reference lookup.
+
+    Mirrors :func:`_validate_crp_params` — diagnostic only, does NOT
+    override the LLM's choices.  Also casts Cab from float to int.
+    """
+    _log = logging.getLogger(__name__)
+    amp_name = _find_amp_name(components, amp_cabinet_lookup)
+    for comp in components:
+        if comp.get("component_name") != _MATCHED_CABINET_PRO_NAME:
+            continue
+        params = comp.get("parameters", {})
+        cab = params.get("Cab")
+        if cab is not None:
+            if isinstance(cab, float):
+                params["Cab"] = int(cab)
+                cab = params["Cab"]
+            if amp_name and amp_name in amp_cabinet_lookup:
+                expected = int(amp_cabinet_lookup[amp_name]["cab_value"])
+                if int(cab) != expected:
+                    _log.warning(
+                        "Matched Cabinet Pro Cab=%s differs from reference %s for %s",
+                        cab,
+                        expected,
+                        amp_name,
+                    )
 
 
 # ---------------------------------------------------------------------------
@@ -355,11 +394,10 @@ def _make_matched_cabinet_pro(
     """Build a Matched Cabinet Pro with three-tier parameter layering.
 
     Priority (highest wins):
-      1. Cab — always from amp_cabinet_lookup (deterministic).
-      2. LLM explicit — params the LLM set on its emitted cabinet,
+      1. LLM explicit — params the LLM set on its emitted cabinet,
          reflecting tonal-target decisions (e.g. more room for airy tones).
-      3. Exemplar factory data — proven-good values from the base preset.
-      4. Schema defaults — fallback for anything still missing.
+      2. Exemplar factory data — proven-good values from the base preset.
+      3. Schema defaults — fallback for anything still missing.
 
     Args:
         amp_name: Amp component name from the lookup (or None).
@@ -371,26 +409,22 @@ def _make_matched_cabinet_pro(
             for Volume, X-Fade etc. when the LLM omits them.
         llm_cabinet_params: Parameter dict the LLM explicitly emitted
             (extracted *before* fill_defaults).  These reflect tonal-target
-            decisions and take priority over exemplar values.  Cab is always
-            overridden by the lookup.
+            decisions and take priority over exemplar values.
 
     Returns:
         Component dict for Matched Cabinet Pro.
     """
-    # Layer 4: schema defaults
+    # Layer 3: schema defaults
     params: dict[str, float | int] = {
         p["param_id"]: p["default_value"]
         for p in schema.get(_MATCHED_CABINET_PRO_NAME, {}).get("parameters", [])
     }
-    # Layer 3: exemplar factory data
+    # Layer 2: exemplar factory data
     if exemplar_cabinet_params:
         params.update(exemplar_cabinet_params)
-    # Layer 2: LLM explicit choices (tonal-target informed)
+    # Layer 1: LLM explicit choices (tonal-target informed)
     if llm_cabinet_params:
         params.update(llm_cabinet_params)
-    # Layer 1: deterministic Cab from lookup (always wins)
-    if amp_name and amp_name in amp_cabinet_lookup:
-        params["Cab"] = int(amp_cabinet_lookup[amp_name]["cab_value"])
 
     return {
         "component_name": _MATCHED_CABINET_PRO_NAME,
@@ -398,7 +432,7 @@ def _make_matched_cabinet_pro(
         "base_exemplar": base_exemplar,
         "modification": "adjusted",
         "confidence": "documented",
-        "rationale": "Cabinet matched to the selected amp from the deterministic lookup table.",
+        "rationale": "Cabinet matched to the selected amp based on tonal target and reference data.",
         "parameters": params,
     }
 
@@ -620,11 +654,12 @@ def map_components(
 
     components = fill_defaults(components, schema)
 
-    # 9b. Cabinet enforcement.
+    # 9b. Cabinet handling.
     # Respect the LLM's cabinet choice:
     #   - If CRP is present → validate CRP params (integer enums).
-    #   - If Matched Cabinet Pro is present (no CRP) → keep it as-is.
-    #   - If neither → inject Matched Cabinet Pro as a safety fallback.
+    #   - If Matched Cabinet Pro is present (no CRP) → validate MCP params.
+    #   - If neither → inject Matched Cabinet Pro as a safety fallback,
+    #     then validate.
     has_crp = _has_control_room(components)
     has_mcp = any(c.get("component_name", "") == _MATCHED_CABINET_PRO_NAME for c in components)
 
@@ -635,7 +670,10 @@ def map_components(
             c for c in components if c.get("component_name", "") != _MATCHED_CABINET_PRO_NAME
         ]
         _validate_crp_params(components)
-    elif not has_mcp:
+    elif has_mcp:
+        # LLM emitted MCP — validate Cab against reference but don't override.
+        _validate_mcp_params(components, amp_cabinet_lookup)
+    else:
         # No cabinet solution at all — inject Matched Cabinet Pro as fallback.
         base_exemplar = components[0].get("base_exemplar", "") if components else ""
         exemplar_cab_params = _extract_exemplar_cabinet_params(exemplars)
@@ -654,5 +692,6 @@ def map_components(
             components.insert(amp_idx + 1, cabinet)
         else:
             components.append(cabinet)
+        _validate_mcp_params(components, amp_cabinet_lookup)
 
     return components, exemplars

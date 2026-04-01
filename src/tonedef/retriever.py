@@ -438,15 +438,18 @@ def search_manual_by_tonal_target(
 # Per-category result budget for stratified descriptor search.
 # Ensures a full guitar signal chain is covered even when the query text
 # is dominated by a single tonal noun (e.g. "reverb" or "distortion").
-# Total: 10 results — Amplifiers x2, Distortion x2, Dynamics x1, Modulation x1,
-# Delay/Echo x1, Reverb x1, EQ x1, Cabinets x1.
+# Budgets reflect the functional breadth of each category in GR7.
+# Total: 16 results.
 _DESCRIPTOR_ALLOCATION: dict[str, int] = {
     "Amplifiers": 2,
     "Distortion": 2,
-    "Dynamics": 1,
-    "Modulation": 1,
-    "Delay / Echo": 1,
-    "Reverb": 1,
+    "Dynamics": 2,
     "EQ": 1,
+    "Filter": 1,
+    "Modulation": 2,
+    "Delay / Echo": 2,
+    "Reverb": 1,
     "Cabinets": 1,
+    "Pitch": 1,
+    "Special FX": 1,
 }

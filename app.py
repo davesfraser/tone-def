@@ -496,7 +496,7 @@ if _has_results:
     p1v = st.session_state.phase1_validation
     if p1v is not None:
         for e in p1v.errors:
-            st.error(e, icon="✗")
+            st.error(e, icon="❌")
         for w in p1v.warnings:
             st.warning(w, icon="⚠️")
 
@@ -520,7 +520,7 @@ if _has_results:
             )
             _all_v = _p2v.merge(_order_v).merge(_pre_v).merge(_intent_v)
             for _e in _all_v.errors:
-                st.error(_e, icon="✗")
+                st.error(_e, icon="❌")
             for _w in _all_v.warnings:
                 st.warning(_w, icon="⚠️")
 

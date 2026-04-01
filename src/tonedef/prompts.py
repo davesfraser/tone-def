@@ -438,8 +438,10 @@ don't need to change.
 </component_schema>
 
 <cabinet_lookup>
-Deterministic amp-to-cabinet mapping. After selecting/modifying the amp
-component, use this table to emit the correct Matched Cabinet Pro entry.
+Amp-to-cabinet reference mapping. Use this table as guidance for which
+Matched Cabinet Pro Cab value pairs well with each amp. The most common
+factory pairing is listed, but you may choose a different Cab value when
+the tonal target calls for it.
 Format: amp_name | cabinet_component_name | cabinet_component_id | cab_value
 
 {{CABINET_LOOKUP}}
@@ -520,9 +522,10 @@ added, use default_value from the component schema.
      correct integer values. These are integer enums — emit them as-is.
    - **Matched Cabinet Pro (156000)** — use when the tonal target does
      not call for specific mic/room control and a simple cabinet match
-     is sufficient. When using Matched Cabinet Pro, look up the amp in
-     the cabinet_lookup table and set the Cab parameter to the cab_value
-     from the table. The Cab parameter is an integer enum — emit it as-is.
+     is sufficient. Use the cabinet_lookup table as a reference for which
+     Cab value pairs well with the selected amp, but choose a different
+     Cab value when the tonal target calls for a different cabinet
+     character. The Cab parameter is an integer enum — emit it as-is.
    Post-cabinet effects (recording chain, studio processing) follow the
    cabinet component.
 8. ORDER — preserve signal chain order: pre-amp effects → amp → cabinet

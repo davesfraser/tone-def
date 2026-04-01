@@ -10,6 +10,7 @@ Usage:
 import json
 import os
 import sys
+from pathlib import Path
 
 from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
 
@@ -80,6 +81,101 @@ COLLECTIONS: list[tuple[str, str, int, str]] = [
 OK = "\033[32m✓\033[0m"
 FAIL = "\033[31m✗\033[0m"
 WARN = "\033[33m!\033[0m"
+
+# ---------------------------------------------------------------------------
+# Staleness dependency map
+# ---------------------------------------------------------------------------
+
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+_SRC_DIR = _SCRIPTS_DIR.parent / "src" / "tonedef"
+_PRESETS_DIR = DATA_EXTERNAL / "presets"
+
+
+def _newest_mtime(*paths: Path) -> float:
+    """Return the newest mtime across all given paths.
+
+    For directories, checks all files recursively.
+    Silently returns 0.0 for paths that don't exist.
+    """
+    newest = 0.0
+    for p in paths:
+        if not p.exists():
+            continue
+        if p.is_dir():
+            for child in p.rglob("*"):
+                if child.is_file():
+                    newest = max(newest, child.stat().st_mtime)
+        else:
+            newest = max(newest, p.stat().st_mtime)
+    return newest
+
+
+# (artifact_path, label, [dependency_paths])
+_STALENESS_MAP: list[tuple[Path, str, list[Path]]] = [
+    (
+        DATA_PROCESSED / "component_schema.json",
+        "Component schema",
+        [_SCRIPTS_DIR / "build_component_schema.py", _SRC_DIR / "ngrr_parser.py", _PRESETS_DIR],
+    ),
+    (
+        DATA_PROCESSED / "tag_catalogue.json",
+        "Tag catalogue",
+        [_SCRIPTS_DIR / "build_tag_catalogue.py", _SRC_DIR / "ngrr_parser.py", _PRESETS_DIR],
+    ),
+    (
+        DATA_PROCESSED / "gr_manual_chunks.json",
+        "GR7 manual chunks",
+        [_SCRIPTS_DIR / "build_manual_chunks.py", _SRC_DIR / "manual_parser.py"],
+    ),
+    (
+        DATA_PROCESSED / "exemplar_store.json",
+        "Exemplar store",
+        [_SCRIPTS_DIR / "build_exemplar_index.py", _SRC_DIR / "ngrr_parser.py", _PRESETS_DIR],
+    ),
+    (
+        DATA_PROCESSED / "amp_cabinet_lookup.json",
+        "Amp-cabinet lookup",
+        [
+            _SCRIPTS_DIR / "build_amp_cabinet_lookup.py",
+            DATA_PROCESSED / "exemplar_store.json",
+        ],
+    ),
+    (
+        DATA_PROCESSED / "chromadb",
+        "ChromaDB index",
+        [
+            _SCRIPTS_DIR / "build_retrieval_index.py",
+            DATA_PROCESSED / "gr_manual_chunks.json",
+        ],
+    ),
+    (
+        DATA_PROCESSED / "parameter_annotations.json",
+        "Parameter annotations",
+        [
+            _SCRIPTS_DIR / "build_parameter_annotations.py",
+            DATA_PROCESSED / "component_schema.json",
+        ],
+    ),
+]
+
+
+def _check_staleness() -> list[str]:
+    issues: list[str] = []
+    print("\nStaleness")
+    print("---------")
+    for artifact_path, label, deps in _STALENESS_MAP:
+        if not artifact_path.exists():
+            # Missing files are already reported by _check_files
+            continue
+        artifact_mtime = _newest_mtime(artifact_path)
+        dep_mtime = _newest_mtime(*deps)
+        if dep_mtime > artifact_mtime:
+            stale_deps = [p.name for p in deps if p.exists() and _newest_mtime(p) > artifact_mtime]
+            print(f"  {WARN}  {label}: may be stale (newer: {', '.join(stale_deps)})")
+            issues.append(f"{label}: may be stale — rebuild may be needed")
+        else:
+            print(f"  {OK}  {label}")
+    return issues
 
 
 def _check_files() -> list[str]:
@@ -186,6 +282,9 @@ def main() -> None:
     all_issues += _check_schema_integrity()
     all_issues += _check_env()
 
+    # Staleness is advisory — warn but don't block the app from running.
+    stale_warnings = _check_staleness()
+
     print()
     if all_issues:
         print(f"\033[31mFound {len(all_issues)} issue(s):\033[0m")
@@ -193,6 +292,11 @@ def main() -> None:
             print(f"  • {issue}")
         sys.exit(1)
     else:
+        if stale_warnings:
+            print(f"\033[33m{len(stale_warnings)} artefact(s) may be stale:\033[0m")
+            for w in stale_warnings:
+                print(f"  • {w}")
+            print()
         print("\033[32mAll checks passed — app is ready to run.\033[0m")
         print("\n  uv run streamlit run app.py")
 
