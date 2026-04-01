@@ -1,5 +1,5 @@
 # This file makes the folder a proper Python package and controls
-# what you get when you do `from {{ package_name }} import ...`
+# what you get when you do `from tonedef import ...`
 
 from importlib.metadata import PackageNotFoundError, version
 

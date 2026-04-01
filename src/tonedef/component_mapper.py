@@ -40,6 +40,8 @@ from tonedef.settings import settings
 from tonedef.signal_chain_parser import ParsedSignalChain, format_tonal_target
 from tonedef.tonal_vocab import format_tonal_descriptors
 
+_log = logging.getLogger(__name__)
+
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _AMP_CABINET_LOOKUP_PATH = DATA_PROCESSED / "amp_cabinet_lookup.json"
 _ANNOTATIONS_PATH = DATA_PROCESSED / "parameter_annotations.json"
@@ -269,7 +271,6 @@ def _validate_crp_params(components: list[dict]) -> None:
     tonal target's named cabinet and microphone suggestions.  This is a
     diagnostic safety net only.
     """
-    _log = logging.getLogger(__name__)
     for comp in components:
         if comp.get("component_name") not in _CONTROL_ROOM_NAMES:
             continue
@@ -308,7 +309,6 @@ def _validate_mcp_params(
     Mirrors :func:`_validate_crp_params` — diagnostic only, does NOT
     override the LLM's choices.  Also casts Cab from float to int.
     """
-    _log = logging.getLogger(__name__)
     amp_name = _find_amp_name(components, amp_cabinet_lookup)
     for comp in components:
         if comp.get("component_name") != _MATCHED_CABINET_PRO_NAME:
@@ -531,6 +531,11 @@ def map_components(
     Raises:
         ValueError: If the LLM response cannot be parsed as a JSON array.
     """
+    _log.info(
+        "map_components: %d exemplar tags, %d pre-extracted components",
+        len(parsed.tags_characters + parsed.tags_genres),
+        sum(len(s.units) for s in parsed.sections),
+    )
     schema = load_schema()
     amp_cabinet_lookup = load_amp_cabinet_lookup()
     annotations = load_annotations()
@@ -603,6 +608,12 @@ def map_components(
         messages=[{"role": "user", "content": prompt}],
     )
 
+    _log.info(
+        "Phase 2 LLM call complete: model=%s, input_tokens=%s, output_tokens=%s",
+        model,
+        getattr(message.usage, "input_tokens", "?"),
+        getattr(message.usage, "output_tokens", "?"),
+    )
     raw = message.content[0].text.strip()
 
     # Strip markdown fences if the model added them despite instructions
@@ -629,7 +640,6 @@ def map_components(
 
     # Validate each component through Pydantic — catches bad enums,
     # missing fields, and coerces list-form parameters to dicts.
-    _log = logging.getLogger(__name__)
     validated: list[ComponentOutput] = []
     for i, item in enumerate(raw_list):
         try:
@@ -666,15 +676,18 @@ def map_components(
     if has_crp:
         # CRP is present — validate Cab1/Mic1/MPos1 and cast to int.
         # Strip any MCP the LLM may have emitted alongside CRP.
+        _log.debug("Cabinet handling: CRP present")
         components = [
             c for c in components if c.get("component_name", "") != _MATCHED_CABINET_PRO_NAME
         ]
         _validate_crp_params(components)
     elif has_mcp:
         # LLM emitted MCP — validate Cab against reference but don't override.
+        _log.debug("Cabinet handling: MCP present")
         _validate_mcp_params(components, amp_cabinet_lookup)
     else:
         # No cabinet solution at all — inject Matched Cabinet Pro as fallback.
+        _log.debug("Cabinet handling: fallback — injecting MCP")
         base_exemplar = components[0].get("base_exemplar", "") if components else ""
         exemplar_cab_params = _extract_exemplar_cabinet_params(exemplars)
         components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]

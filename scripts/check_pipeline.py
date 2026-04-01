@@ -263,7 +263,7 @@ def _check_env() -> list[str]:
         print(f"  {FAIL}  ANTHROPIC_API_KEY: not set")
         issues.append("ANTHROPIC_API_KEY: add to .env")
     else:
-        print(f"  {OK}  ANTHROPIC_API_KEY: set ({api_key[:8]}…)")
+        print(f"  {OK}  ANTHROPIC_API_KEY: set")
     return issues
 
 

@@ -272,7 +272,7 @@ data/
 ## Setup
 
 ```bash
-git clone https://github.com/yourusername/tonedef.git
+git clone https://github.com/davesfraser/tone-def
 cd tonedef
 
 uv sync

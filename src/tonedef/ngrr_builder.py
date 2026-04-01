@@ -28,9 +28,12 @@ Usage:
     from ngrr_builder import transplant_preset, extract_signal_chain, verify_preset
 """
 
+import logging
 import struct
 import uuid as _uuid
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Low-level binary field operations
@@ -362,6 +365,13 @@ def transplant_preset(
     template_path = Path(template_path)
     output_path = Path(output_path)
 
+    _log.info(
+        "transplant_preset: template=%s, output=%s, name=%r",
+        template_path.name,
+        output_path.name,
+        preset_name,
+    )
+
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
 
@@ -399,6 +409,10 @@ def transplant_preset(
 
     # Step 6: Fresh UUIDs
     data = refresh_uuids(data)
+
+    _log.debug(
+        "Preset built: %d bytes, xml_chunks=%s", len(data), _compute_xml_chunk_sizes(bytes(data))
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "wb") as f:

@@ -21,7 +21,7 @@ readme = "README.md"
 # Ruff and ty can infer the project Python version from here
 requires-python = ">=3.13"
 
-authors = [{ name = "Dave", email = "dave@dave.com" }]
+authors = [{ name = "David Fraser" }]
 
 license = { file = "LICENSE" }
 

@@ -17,6 +17,7 @@ from tonedef.component_mapper import (
     load_schema,
     map_components,
 )
+from tonedef.log import configure_logging
 from tonedef.models import ComponentOutput
 from tonedef.ngrr_builder import transplant_preset
 from tonedef.paths import DATA_EXTERNAL
@@ -37,6 +38,7 @@ from tonedef.xml_builder import build_signal_chain_xml
 # Page config
 # ---------------------------------------------------------------------------
 
+configure_logging()
 st.set_page_config(page_title="ToneDef", page_icon="🎸", layout="wide")
 
 # ---------------------------------------------------------------------------
@@ -528,19 +530,19 @@ if _has_results:
     _render_similar_presets(st.session_state.exemplars)
 
     # Component cards
-    st.markdown('<div class="section-label">Signal Chain Components</div>', unsafe_allow_html=True)
+    st.markdown("##### Signal Chain Components")
     _card_schema = load_schema()
     for i, comp in enumerate(st.session_state.components):
         _render_component_card(comp, schema=_card_schema)
         if i < len(st.session_state.components) - 1:
-            st.markdown('<div class="chain-arrow">↓</div>', unsafe_allow_html=True)
+            st.caption("↓")
 
     # Raw output
     with st.expander("🔍 Raw signal chain output"):
         st.code(st.session_state.signal_chain_raw, language=None)
 
     # Download section
-    st.markdown('<div class="section-label">Download Preset</div>', unsafe_allow_html=True)
+    st.markdown("##### Download Preset")
 
     preset_name = st.text_input(
         "Preset name",

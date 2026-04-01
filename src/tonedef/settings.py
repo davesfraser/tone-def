@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Set a fixed random seed for reproducibility
     random_seed: int = Field(default=42)
 
+    # --- Logging ---
+    # Controls file handler level; stderr is always WARNING+
+    log_level: str = Field(default="INFO")
+
     # --- Secrets ---
     anthropic_api_key: SecretStr = Field(default=SecretStr(""))
 

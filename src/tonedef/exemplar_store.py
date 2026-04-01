@@ -23,9 +23,12 @@ Functions:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from tonedef.ngrr_parser import extract_preset_name, extract_xml2, parse_non_fix_components
+
+_log = logging.getLogger(__name__)
 
 
 def _invert_tag_catalogue(tag_catalogue: list[dict]) -> dict[str, list[str]]:
@@ -94,6 +97,7 @@ def build_exemplar_records(
             if not raw_components:
                 continue
         except Exception:
+            _log.debug("Skipping %s: parse failed", path.name)
             continue
 
         components = [
@@ -113,6 +117,7 @@ def build_exemplar_records(
             }
         )
 
+    _log.info("Built %d exemplar records from %s", len(records), preset_dir)
     return records
 
 

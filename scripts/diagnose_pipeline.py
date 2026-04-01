@@ -1,12 +1,10 @@
 """Diagnostic script — traces every step of map_components for a given query."""
 
 import json
-import os
 import re
 import sys
 
 import anthropic
-from dotenv import load_dotenv
 
 from tonedef.component_mapper import (
     _MATCHED_CABINET_PRO_NAME,
@@ -26,8 +24,8 @@ from tonedef.retriever import (
     search_exemplars,
     search_manual_for_categories,
 )
+from tonedef.settings import settings
 
-load_dotenv()
 SEP = "=" * 72
 
 query = (
@@ -41,7 +39,7 @@ print(f"\n{SEP}")
 print("PHASE 1 — Sonic Analysis")
 print(SEP)
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
 
 system = SYSTEM_PROMPT.replace("{{TAVILY_RESULTS}}", "No context retrieved.")
 phase1_msg = client.messages.create(

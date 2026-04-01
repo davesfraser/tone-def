@@ -34,7 +34,11 @@ Thumbs.db
 # Environment files
 # Often contain secrets or machine-specific config
 .env
-.env.*
+!.env.example
+
+# Log files
+logs/*.log
+!logs/.gitkeep
 
 # Data files
 # Keep binary data (aka non-code) out of git repo as much as possible

@@ -19,6 +19,7 @@ Build the persisted collections once with:
 from __future__ import annotations
 
 import json
+import logging
 import random
 import re
 from pathlib import Path
@@ -31,6 +32,8 @@ from tonedef.settings import settings
 _COLLECTION_NAME = "gr_manual"
 _PERSIST_DIR = DATA_PROCESSED / "chromadb"
 _EXEMPLARS_PATH = DATA_PROCESSED / "exemplar_store.json"
+
+_log = logging.getLogger(__name__)
 
 # Controlled tag vocabulary — must match prompts.py SYSTEM_PROMPT
 CHARACTERS_VOCAB: frozenset[str] = frozenset(
@@ -255,7 +258,16 @@ def search_exemplars(
     rng.shuffle(scored)
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    return [{**rec, "distance": round(1.0 - sc, 4)} for sc, _name, rec in scored[:n_results]]
+    top = scored[:n_results]
+    if top:
+        _log.info(
+            "Top exemplar: %s (score=%.3f), %d candidates scored",
+            top[0][1],
+            top[0][0],
+            len(scored),
+        )
+
+    return [{**rec, "distance": round(1.0 - sc, 4)} for sc, _name, rec in top]
 
 
 def _query_stratified(query_text: str, allocation: dict[str, int]) -> list[dict]:
@@ -303,6 +315,7 @@ def _query_stratified(query_text: str, allocation: dict[str, int]) -> list[dict]
                 )
 
     items.sort(key=lambda x: x["distance"])
+    _log.debug("Stratified retrieval: %d results across %d categories", len(items), len(allocation))
     return items
 
 
@@ -336,6 +349,7 @@ def get_manual_chunks_for_components(component_names: set[str]) -> list[dict]:
                 include=["documents", "metadatas"],
             )
         except Exception:
+            _log.debug("ChromaDB lookup failed for %s", name)
             continue
         for doc, meta in zip(
             results.get("documents", []),

@@ -17,7 +17,7 @@ def project_root() -> Path:
 # your code — it keeps things consistent and easy to refactor
 #
 # Example:
-#   from {{ package_name }}.paths import DATA_RAW, MODELS_DIR
+#   from tonedef.paths import DATA_RAW, MODELS_DIR
 #   df = pd.read_parquet(DATA_RAW / "survey_2024.parquet")
 
 DATA_DIR = project_root() / "data"
