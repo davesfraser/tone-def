@@ -114,7 +114,7 @@ app = [
 # plain "uv sync" installs the base project + dev tools
 # Other groups stay opt-in so the starter doesn't become bloated by default
 # i.e. you'll need to explicitly tell uv to install them...
-default-groups = ["dev", "notebook", "data", "stats"]
+default-groups = ["dev", "notebook", "data", "stats", "app"]
 
 [tool.hatch.build.targets.wheel]
 # Keep src imports honest and let CI catch packaging drift
@@ -126,6 +126,9 @@ minversion = "8.0"
 
 # Keep tests at the repo root instead of mixing them into src/
 testpaths = ["tests"]
+
+# Add repo root to sys.path so top-level packages (ui/) are importable
+pythonpath = ["."]
 
 # Good defaults for CI and local runs:
 # -ra: show extra summary info
@@ -139,6 +142,10 @@ addopts = [
     "--strict-markers",
     "--cov=tonedef",
     "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=75",
+]
+markers = [
+    "integration: end-to-end tests with mocked LLM responses",
 ]
 
 # If an expected-fail test suddenly passes, show it
@@ -231,6 +238,9 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Tests can be less strict about annotations
 "tests/**/*.py" = ["ANN"]
+
+# App entrypoint uses top-level Streamlit calls (module-level side effects)
+"app.py" = ["ANN"]
 
 # marimo files are exploratory / notebook-like.
 # Keep them clean, but don't force full production-style typing there

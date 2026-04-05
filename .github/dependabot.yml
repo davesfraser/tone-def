@@ -1,0 +1,20 @@
+version: 2
+
+updates:
+  # Keep GitHub Actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Keep Python dependencies up to date
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Avoid noisy PRs — group minor/patch bumps together
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"

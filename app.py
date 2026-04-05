@@ -44,7 +44,7 @@ from tonedef.validation import (
 # ---------------------------------------------------------------------------
 
 configure_logging()
-st.set_page_config(page_title="ToneDef", page_icon="🎸", layout="wide")
+st.set_page_config(page_title="ToneDef", page_icon="ui/assets/logo.png", layout="wide")
 
 # ---------------------------------------------------------------------------
 # Session state initialisation
@@ -102,7 +102,7 @@ def _clear_results() -> None:
 
 inject_css()
 
-st.markdown("# 🎸 ToneDef")
+st.image("ui/assets/logo.png", width="stretch")
 st.caption("Describe your tone → get a Guitar Rig 7 preset")
 
 # Determine current stage

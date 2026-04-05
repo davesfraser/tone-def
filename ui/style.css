@@ -4,6 +4,16 @@
 .block-container { max-width: 860px; }
 section[data-testid="stSidebar"] { display: none; }
 
+/* ── Hero header ── */
+[data-testid="stImage"] { margin-bottom: -0.5rem; }
+.block-container h2 {
+    text-align: center; font-family: 'Inter', sans-serif;
+    font-weight: 700; letter-spacing: 0.02em; margin: 0;
+}
+.block-container [data-testid="stCaptionContainer"] {
+    text-align: center; margin-bottom: 0.2rem;
+}
+
 /* ── Stepper bar ── */
 .stepper {
     display: flex; align-items: center; justify-content: center;

@@ -1,5 +1,7 @@
 # ToneDef
 
+![CI](https://github.com/davesfraser/tone-def/actions/workflows/CI.yaml/badge.svg)
+
 > *"Give me Mark Knopfler from Dire Straits tone from the Brothers in Arms album"* → loadable Guitar Rig 7 preset, in seconds.
 
 ToneDef is a GenAI application that bridges the gap between *wanting* a guitar tone and *having* it
