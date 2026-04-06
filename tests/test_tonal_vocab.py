@@ -181,7 +181,7 @@ def test_get_all_selected_terms_empty_dict() -> None:
 
 
 def test_get_all_selected_terms_all_none() -> None:
-    selections = {"a": None, "b": None}
+    selections: dict[str, str | None] = {"a": None, "b": None}
     assert get_all_selected_terms(selections) == []
 
 

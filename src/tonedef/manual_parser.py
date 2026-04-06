@@ -120,7 +120,7 @@ def extract_full_text(pdf_path: Path, start_page: int = COMPONENT_REFERENCE_STAR
         Concatenated cleaned text from *start_page* onwards.
     """
     if pdfplumber is None:  # pragma: no cover
-        msg = "pdfplumber is required - install with: uv add pdfplumber"
+        msg = "pdfplumber is required - install with: uv add pdfplumber"  # type: ignore[unreachable]
         raise ImportError(msg)
 
     full_text = ""

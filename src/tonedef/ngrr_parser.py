@@ -486,7 +486,7 @@ def merge_tags_into_catalogue(catalogue: dict, metadata: dict) -> dict:
     return catalogue
 
 
-def finalise_tag_catalogue(catalogue: dict) -> dict:
+def finalise_tag_catalogue(catalogue: dict) -> list[dict]:
     """
     Sort and finalise the tag catalogue for serialisation.
 

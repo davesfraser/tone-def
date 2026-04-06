@@ -414,7 +414,7 @@ def test_make_matched_cabinet_pro_exemplar_fills_gaps_llm_missed() -> None:
     # Exemplar sets both
     exemplar_params = {"Vol": 0.45, "Cab": 23}
     # LLM only set Cab
-    llm_params = {"Cab": 15}
+    llm_params: dict[str, float | int] = {"Cab": 15}
     result = _make_matched_cabinet_pro(
         "Lead 800",
         _AMP_CABINET_LOOKUP,
@@ -641,7 +641,7 @@ def test_extract_exemplar_cabinet_params_returns_copy() -> None:
     result = _extract_exemplar_cabinet_params(_EXEMPLARS_WITH_CABINET)
     assert result is not None
     result["MV"] = 999
-    original = _EXEMPLARS_WITH_CABINET[0]["components"][2]["parameters"]["MV"]
+    original = _EXEMPLARS_WITH_CABINET[0]["components"][2]["parameters"]["MV"]  # type: ignore[index]
     assert original == pytest.approx(0.45)
 
 
@@ -659,7 +659,9 @@ def test_cabinet_inserted_after_amp_not_at_end() -> None:
     ]
     # Simulate the enforcement logic from map_components
     base_exemplar = "test"
-    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    components = [
+        c for c in components if "cabinet" not in str(c.get("component_name", "")).lower()
+    ]
     amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
     cabinet = _make_matched_cabinet_pro(
         amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
@@ -681,7 +683,9 @@ def test_cabinet_appended_when_no_amp() -> None:
         {"component_name": "Solid EQ", "component_id": 121000, "parameters": {}},
     ]
     base_exemplar = "test"
-    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    components = [
+        c for c in components if "cabinet" not in str(c.get("component_name", "")).lower()
+    ]
     amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
     cabinet = _make_matched_cabinet_pro(
         amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
@@ -705,7 +709,9 @@ def test_llm_emitted_cabinet_stripped_before_insertion() -> None:
         {"component_name": "Solid EQ", "component_id": 121000, "parameters": {}},
     ]
     base_exemplar = "test"
-    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    components = [
+        c for c in components if "cabinet" not in str(c.get("component_name", "")).lower()
+    ]
     amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
     cabinet = _make_matched_cabinet_pro(
         amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar
@@ -719,7 +725,7 @@ def test_llm_emitted_cabinet_stripped_before_insertion() -> None:
     names = [c["component_name"] for c in components]
     assert names == ["Tube Screamer", "Lead 800", "Matched Cabinet Pro", "Solid EQ"]
     # Only one cabinet total
-    assert sum(1 for c in components if "cabinet" in c["component_name"].lower()) == 1
+    assert sum(1 for c in components if "cabinet" in str(c["component_name"]).lower()) == 1
 
 
 def test_cabinet_ordering_with_multiple_post_effects() -> None:
@@ -732,7 +738,9 @@ def test_cabinet_ordering_with_multiple_post_effects() -> None:
         {"component_name": "Solid Buscomp", "component_id": 122000, "parameters": {}},
     ]
     base_exemplar = "test"
-    components = [c for c in components if "cabinet" not in c.get("component_name", "").lower()]
+    components = [
+        c for c in components if "cabinet" not in str(c.get("component_name", "")).lower()
+    ]
     amp_name = _find_amp_name(components, _AMP_CABINET_LOOKUP)
     cabinet = _make_matched_cabinet_pro(
         amp_name, _AMP_CABINET_LOOKUP, _SCHEMA_WITH_CABINET, base_exemplar

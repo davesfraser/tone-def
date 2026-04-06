@@ -296,13 +296,19 @@ def _query_stratified(query_text: str, allocation: dict[str, int]) -> list[dict]
             where={"category": category},
             include=["documents", "metadatas", "distances"],
         )
+        docs = results["documents"]
+        metas = results["metadatas"]
+        dists = results["distances"]
+        assert docs is not None
+        assert metas is not None
+        assert dists is not None
         for doc, meta, dist in zip(
-            results["documents"][0],
-            results["metadatas"][0],
-            results["distances"][0],
+            docs[0],
+            metas[0],
+            dists[0],
             strict=False,
         ):
-            cname = meta.get("component_name", "")
+            cname = str(meta.get("component_name", ""))
             if cname not in seen:
                 seen.add(cname)
                 items.append(
@@ -352,8 +358,8 @@ def get_manual_chunks_for_components(component_names: set[str]) -> list[dict]:
             _log.debug("ChromaDB lookup failed for %s", name)
             continue
         for doc, meta in zip(
-            results.get("documents", []),
-            results.get("metadatas", []),
+            results.get("documents") or [],
+            results.get("metadatas") or [],
             strict=False,
         ):
             items.append(
@@ -424,15 +430,21 @@ def search_manual_by_tonal_target(
         n_results=top_n + len(exclude),
         include=["documents", "metadatas", "distances"],
     )
+    docs = results["documents"]
+    metas = results["metadatas"]
+    dists = results["distances"]
+    assert docs is not None
+    assert metas is not None
+    assert dists is not None
     items: list[dict] = []
     seen: set[str] = set()
     for doc, meta, dist in zip(
-        results["documents"][0],
-        results["metadatas"][0],
-        results["distances"][0],
+        docs[0],
+        metas[0],
+        dists[0],
         strict=False,
     ):
-        cname = meta.get("component_name", "")
+        cname = str(meta.get("component_name", ""))
         if cname in seen or cname in exclude:
             continue
         seen.add(cname)

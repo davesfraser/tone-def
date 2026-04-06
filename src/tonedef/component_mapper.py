@@ -23,6 +23,7 @@ import logging
 import re
 
 import anthropic
+from anthropic.types import TextBlock
 from pydantic import ValidationError
 
 from tonedef.crp_lookup import format_crp_reference
@@ -67,7 +68,8 @@ _CONTROL_ROOM_NAMES: frozenset[str] = frozenset(
 def load_schema() -> dict:
     """Load component_schema.json as a dict keyed by component_name."""
     with open(_SCHEMA_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        data: dict = json.load(f)
+    return data
 
 
 def load_amp_cabinet_lookup() -> dict[str, dict]:
@@ -79,8 +81,9 @@ def load_amp_cabinet_lookup() -> dict[str, dict]:
     ``amps`` dict for backward-compatible keyed access.
     """
     with open(_AMP_CABINET_LOOKUP_PATH, encoding="utf-8") as f:
-        data = json.load(f)
-    return data.get("amps", data)
+        data: dict = json.load(f)
+    result: dict[str, dict] = data.get("amps", data)
+    return result
 
 
 def load_annotations() -> dict[str, dict[str, dict]]:
@@ -93,7 +96,8 @@ def load_annotations() -> dict[str, dict[str, dict]]:
     if not _ANNOTATIONS_PATH.exists():
         return {}
     with open(_ANNOTATIONS_PATH, encoding="utf-8") as f:
-        return json.load(f)
+        data: dict[str, dict[str, dict]] = json.load(f)
+    return data
 
 
 # ---------------------------------------------------------------------------
@@ -614,7 +618,11 @@ def map_components(
         getattr(message.usage, "input_tokens", "?"),
         getattr(message.usage, "output_tokens", "?"),
     )
-    raw = message.content[0].text.strip()
+    block = message.content[0]
+    if not isinstance(block, TextBlock) and not hasattr(block, "text"):
+        msg = f"Expected TextBlock, got {type(block).__name__}"
+        raise TypeError(msg)
+    raw = block.text.strip()  # type: ignore[union-attr]
 
     # Strip markdown fences if the model added them despite instructions
     if raw.startswith("```"):

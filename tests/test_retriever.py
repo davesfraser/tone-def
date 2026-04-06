@@ -208,7 +208,7 @@ class TestScoreExemplar:
         assert score == pytest.approx(1.0)
 
     def test_empty_both(self) -> None:
-        record = {"tags": [], "components": []}
+        record: dict[str, list] = {"tags": [], "components": []}
         score = score_exemplar(record, [], [])
         assert score == pytest.approx(0.0)
 

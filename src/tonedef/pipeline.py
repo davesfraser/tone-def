@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 
 import anthropic
+from anthropic.types import TextBlock
 
 from tonedef.prompts import SYSTEM_PROMPT
 from tonedef.settings import settings
@@ -66,4 +67,8 @@ def generate_signal_chain(
         getattr(message.usage, "output_tokens", "?"),
     )
 
-    return message.content[0].text
+    block = message.content[0]
+    if not isinstance(block, TextBlock) and not hasattr(block, "text"):
+        msg = f"Expected TextBlock, got {type(block).__name__}"
+        raise TypeError(msg)
+    return block.text  # type: ignore[union-attr]
