@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tonedef.paths import DATA_PROCESSED
 from tonedef.pipeline import compose_query, generate_signal_chain
 from tonedef.preset_builder import build_preset
 from tonedef.signal_chain_parser import parse_signal_chain
@@ -125,6 +126,10 @@ def _make_fake_client(responses: list[str]) -> MagicMock:
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(
+    not (DATA_PROCESSED / "component_schema.json").exists(),
+    reason="Processed data files not present in data/processed/",
+)
 def test_full_pipeline_produces_ngrr_bytes() -> None:
     """End-to-end pipeline: query → .ngrr bytes, all LLM calls mocked."""
     # Arrange

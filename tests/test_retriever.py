@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from tonedef.paths import DATA_PROCESSED
 from tonedef.retriever import (
     CONTROLLED_VOCAB,
     parse_signal_chain_components,
@@ -234,7 +235,13 @@ class TestScoreExemplar:
 # search_exemplars (integration — requires exemplar_store.json on disk)
 # ---------------------------------------------------------------------------
 
+_EXEMPLAR_STORE_PATH = DATA_PROCESSED / "exemplar_store.json"
 
+
+@pytest.mark.skipif(
+    not _EXEMPLAR_STORE_PATH.exists(),
+    reason="exemplar_store.json not present in data/processed/",
+)
 class TestSearchExemplars:
     def test_returns_list(self) -> None:
         results = search_exemplars(PHASE1_OUTPUT, n_results=3)
