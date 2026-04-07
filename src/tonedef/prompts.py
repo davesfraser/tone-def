@@ -93,10 +93,14 @@ Include recording and studio sections when:
   achieved with amp and cabinet alone.
 - The described sound implies post-cabinet processing (bitcrushing, tape wobble,
   studio EQ, bus compression, spatial effects beyond simple reverb).
+- The query is abstract, evocative, or conceptual rather than describing specific
+  gear — the mood, atmosphere, or concept cannot be expressed with an amp and
+  cabinet alone and benefits from effects, spatial processing, and tonal shaping
+  to translate into sound.
 
 Omit recording and studio sections when:
-- The query describes a straightforward amp tone, pedal combination, or playing
-  style with no recording or production character implied.
+- The query explicitly describes a specific amp, pedal, or rig by name and the
+  named gear can reproduce the tone without additional processing.
 - Adding studio processing would not meaningfully contribute to the described tone.
 
 When in doubt, include the sections — it is better to over-deliver than to
