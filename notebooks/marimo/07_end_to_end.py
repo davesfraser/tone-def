@@ -248,7 +248,7 @@ def _(
             [
                 mo.md(f"### Preset built\n\n**{_name}** — {len(_data):,} bytes"),
                 mo.md(f"#### XML preview\n\n```xml\n{_xml[:2000]}\n```"),
-                mo.download(_data, filename=f"{_name}.ngrr", label="Download .ngrr"),
+                mo.download(_data, filename=f"{_name}.ngrr", label="Download preset"),
             ]
         )
 

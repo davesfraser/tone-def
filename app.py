@@ -212,7 +212,7 @@ if _has_results:
     if st.session_state.preset_bytes is None or preset_name != st.session_state.get(
         "_last_built_name"
     ):
-        with st.spinner("Building .ngrr..."):
+        with st.spinner("Building preset file..."):
             st.session_state.preset_bytes = build_preset(st.session_state.components, preset_name)
             st.session_state["_last_built_name"] = preset_name
 
@@ -222,7 +222,7 @@ if _has_results:
     )
 
     st.download_button(
-        label="⬇️  Download .ngrr",
+        label="⬇️  Download preset",
         data=st.session_state.preset_bytes,
         file_name=f"{safe_name}.ngrr",
         mime="application/octet-stream",
