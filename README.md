@@ -343,11 +343,13 @@ uv run streamlit run app.py
 
 - **v0.4 — Iterative refinement**: chat-based follow-up queries ("make it brighter", "add more
   reverb") with diff-based preset editing and session state
-- **Tavily RAG**: web retrieval to enrich phase 1 with live gear documentation; currently a
-  `{{TAVILY_RESULTS}}` placeholder in SYSTEM_PROMPT, deferred as the system performs well
+
+- **Future**:
+  - **Tavily RAG**: web retrieval to enrich phase 1 with live gear documentation; currently a
+    `{{TAVILY_RESULTS}}` placeholder in SYSTEM_PROMPT, deferred as the system performs well
   without it
-- **Multi-platform support**: extend preset generation to other amp emulation software (Helix
-  Native, Amplitube, BIAS FX) by abstracting the binary builder and component schema layers
+  - **Multi-platform support**: extend preset generation to other amp emulation software (e.g. Helix
+    Native, S-Gear, Amplitube etc) by abstracting the binary builder and component schema layers
 
 ---
 
