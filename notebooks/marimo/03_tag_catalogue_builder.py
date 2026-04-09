@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
 
 
@@ -52,7 +52,9 @@ def _():
         parse_preset_metadata,
     )
 
-    PRESET_FILE_PATH = paths.DATA_EXTERNAL / "presets"
+    PRESET_FILE_PATH = (
+        paths.DATA_EXTERNAL / "presets"
+    )  ### NEEDS TO POINT AT GR7 FACTORY PRESET FOLDER PATH!
     return (
         PRESET_FILE_PATH,
         extract_xml1,

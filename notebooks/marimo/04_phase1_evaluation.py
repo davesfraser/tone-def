@@ -1,20 +1,9 @@
 # applied-skills: marimo, ds-workflow
+
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
-
-# Cell plan:
-# cell 1: imports            params ()                          returns (mo,)
-# cell 2: lib_imports        params ()                          returns (anthropic, settings, generate_signal_chain, parse_signal_chain, validate_phase1, format_tonal_target)
-# cell 3: header             params (mo,)                       returns ()
-# cell 4: query_input        params (mo,)                       returns (query,)
-# cell 5: run_phase1         params (query, anthropic, settings, generate_signal_chain, parse_signal_chain, validate_phase1) returns (raw_output, parsed_chain, phase1_result)
-# cell 6: validation_display params (mo, phase1_result)         returns ()
-# cell 7: parsed_display     params (mo, parsed_chain)          returns ()
-# cell 8: compact_view       params (mo, parsed_chain, format_tonal_target) returns ()
-# cell 9: raw_vs_parsed      params (mo, raw_output, parsed_chain) returns ()
-# cell 10: tags_display      params (mo, parsed_chain)          returns ()
 
 
 @app.cell
@@ -61,6 +50,7 @@ def _(mo):
         label="Tone query",
         placeholder="e.g. warm singing sustain with a slight chorus shimmer",
         full_width=True,
+        value="a warm singing sustain with a slight chorus shimmer",
     )
     query
     return (query,)
@@ -82,7 +72,7 @@ def _(
     raw_output = generate_signal_chain(query.value, _client)
     parsed_chain = parse_signal_chain(raw_output)
     phase1_result = validate_phase1(parsed_chain)
-    return (parsed_chain, phase1_result, raw_output)
+    return parsed_chain, phase1_result, raw_output
 
 
 @app.cell
@@ -97,7 +87,8 @@ def _(mo, phase1_result):
             items.append(mo.callout(mo.md("Phase 1 validation passed"), kind="success"))
         return mo.vstack(items)
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -117,7 +108,8 @@ def _(mo, parsed_chain):
                     lines.append(f"  - {p.name}: {p.value}")
         return mo.md("\n".join(lines))
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -159,7 +151,8 @@ def _(mo, parsed_chain):
         genres = ", ".join(parsed_chain.tags_genres) if parsed_chain.tags_genres else "*(none)*"
         return mo.md(f"### Tags\n\n**Characters:** {chars}\n\n**Genres:** {genres}")
 
-    return _()
+    _()
+    return
 
 
 if __name__ == "__main__":

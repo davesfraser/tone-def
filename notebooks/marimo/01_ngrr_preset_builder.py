@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
 
 
@@ -103,7 +103,9 @@ def _(mo):
 def _(paths):
     # Adjust these paths to match your environment
     TEMPLATE_PATH = paths.DATA_EXTERNAL / "Blank_template.ngrr"
-    DONOR_PATH = paths.DATA_EXTERNAL / "EC - Beano.ngrr"
+    DONOR_PATH = (
+        paths.DATA_EXTERNAL / "EC - Beano.ngrr"
+    )  ### USER NEEDS TO PROVIDE A DONOR PRESET FILE!
     OUTPUT_DIR = paths.DATA_PROCESSED
 
     print(f"Template exists: {TEMPLATE_PATH.exists()}")

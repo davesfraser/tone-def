@@ -1,18 +1,9 @@
 # applied-skills: marimo, ds-workflow
+
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
-
-# Cell plan:
-# cell 1: imports            params ()                          returns (mo,)
-# cell 2: lib_imports        params ()                          returns (parse_signal_chain, search_exemplars, validate_retrieval, score_exemplar)
-# cell 3: header             params (mo,)                       returns ()
-# cell 4: query_input        params (mo,)                       returns (signal_chain_input, n_slider, threshold_slider)
-# cell 5: run_retrieval      params (signal_chain_input, n_slider, search_exemplars, parse_signal_chain, validate_retrieval, threshold_slider) returns (exemplars, retrieval_result, parsed_for_retrieval)
-# cell 6: validation_display params (mo, retrieval_result)      returns ()
-# cell 7: exemplar_table     params (mo, exemplars)             returns ()
-# cell 8: tag_comparison     params (mo, exemplars, parsed_for_retrieval) returns ()
 
 
 @app.cell
@@ -24,12 +15,11 @@ def _():
 
 @app.cell
 def _():
-    from tonedef.exemplar_store import score_exemplar
-    from tonedef.retriever import search_exemplars
+    from tonedef.retriever import score_exemplar, search_exemplars
     from tonedef.signal_chain_parser import parse_signal_chain
     from tonedef.validation import validate_retrieval
 
-    return (parse_signal_chain, score_exemplar, search_exemplars, validate_retrieval)
+    return parse_signal_chain, search_exemplars, validate_retrieval
 
 
 @app.cell
@@ -55,7 +45,7 @@ def _(mo):
         start=0.0, stop=1.0, value=0.1, step=0.05, label="Min score threshold"
     )
     mo.vstack([signal_chain_input, mo.hstack([n_slider, threshold_slider])])
-    return (n_slider, signal_chain_input, threshold_slider)
+    return n_slider, signal_chain_input, threshold_slider
 
 
 @app.cell
@@ -83,7 +73,7 @@ def _(
         components=_components,
     )
     retrieval_result = validate_retrieval(exemplars, min_score=threshold_slider.value)
-    return (exemplars, parsed_for_retrieval, retrieval_result)
+    return exemplars, parsed_for_retrieval, retrieval_result
 
 
 @app.cell
@@ -96,7 +86,8 @@ def _(mo, retrieval_result):
             items.append(mo.callout(mo.md("Retrieval quality OK"), kind="success"))
         return mo.vstack(items)
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -120,7 +111,8 @@ def _(exemplars, mo):
             )
         return mo.ui.table(rows, label="Exemplar results")
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -150,7 +142,8 @@ def _(exemplars, mo, parsed_for_retrieval):
             [mo.md(f"### Tag overlap (query tags: {', '.join(sorted(query_tags))})"), *items]
         )
 
-    return _()
+    _()
+    return
 
 
 if __name__ == "__main__":

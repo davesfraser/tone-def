@@ -1,18 +1,9 @@
 # applied-skills: marimo, ds-workflow
+
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
-
-# Cell plan:
-# cell 1:  imports            params ()                                returns (mo,)
-# cell 2:  lib_imports        params ()                                returns (anthropic, settings, generate_signal_chain, parse_signal_chain, map_components, load_schema, load_amp_cabinet_lookup, ComponentOutput, validate_phase1, validate_phase2, validate_signal_chain_order, validate_pre_build, validate_retrieval, search_exemplars, build_signal_chain_xml, transplant_preset, DATA_EXTERNAL, format_tonal_target)
-# cell 3:  header             params (mo,)                            returns ()
-# cell 4:  query_input        params (mo,)                            returns (e2e_query,)
-# cell 5:  run_pipeline       params (e2e_query, anthropic, settings, generate_signal_chain, parse_signal_chain, map_components, load_schema, load_amp_cabinet_lookup, ComponentOutput, validate_phase1, validate_phase2, validate_signal_chain_order, validate_pre_build, validate_retrieval, search_exemplars, format_tonal_target) returns (e2e_raw, e2e_parsed, e2e_p1v, e2e_exemplars, e2e_rv, e2e_components, e2e_validated, e2e_p2v, e2e_ov, e2e_pv)
-# cell 6:  validation_cascade params (mo, e2e_p1v, e2e_rv, e2e_p2v, e2e_ov, e2e_pv)  returns ()
-# cell 7:  component_summary  params (mo, e2e_components)             returns ()
-# cell 8:  build_preset       params (mo, e2e_components, load_schema, build_signal_chain_xml, transplant_preset, DATA_EXTERNAL, e2e_query) returns ()
 
 
 @app.cell
@@ -48,7 +39,6 @@ def _():
         DATA_EXTERNAL,
         anthropic,
         build_signal_chain_xml,
-        format_tonal_target,
         generate_signal_chain,
         load_amp_cabinet_lookup,
         load_schema,
@@ -92,13 +82,12 @@ def _(mo):
 def _(
     ComponentOutput,
     anthropic,
-    format_tonal_target,
+    e2e_query,
     generate_signal_chain,
     load_amp_cabinet_lookup,
     load_schema,
     map_components,
     mo,
-    e2e_query,
     parse_signal_chain,
     search_exemplars,
     settings,
@@ -124,7 +113,7 @@ def _(
     e2e_rv = validate_retrieval(e2e_exemplars)
 
     # Phase 2
-    e2e_components = map_components(e2e_raw, e2e_parsed, _client)
+    e2e_components, _e2e_exemplars = map_components(e2e_raw, e2e_parsed, _client)
 
     _schema = load_schema()
     _amp_cab = load_amp_cabinet_lookup()
@@ -139,18 +128,7 @@ def _(
     e2e_p2v = validate_phase2(e2e_validated, _schema) if e2e_validated else None
     e2e_ov = validate_signal_chain_order(e2e_validated, _amp_cab) if e2e_validated else None
     e2e_pv = validate_pre_build(e2e_validated) if e2e_validated else None
-    return (
-        e2e_components,
-        e2e_exemplars,
-        e2e_ov,
-        e2e_p1v,
-        e2e_p2v,
-        e2e_parsed,
-        e2e_pv,
-        e2e_raw,
-        e2e_rv,
-        e2e_validated,
-    )
+    return e2e_components, e2e_ov, e2e_p1v, e2e_p2v, e2e_pv, e2e_rv
 
 
 @app.cell
@@ -186,7 +164,8 @@ def _(e2e_ov, e2e_p1v, e2e_p2v, e2e_pv, e2e_rv, mo):
         )
         return mo.vstack([summary, *items])
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -207,7 +186,8 @@ def _(e2e_components, mo):
             )
         return mo.ui.table(rows, label="Final component list")
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -252,7 +232,8 @@ def _(
             ]
         )
 
-    return _()
+    _()
+    return
 
 
 if __name__ == "__main__":

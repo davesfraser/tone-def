@@ -1,19 +1,9 @@
 # applied-skills: marimo, ds-workflow
+
 import marimo
 
-__generated_with = "0.20.4"
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
-
-# Cell plan:
-# cell 1:  imports            params ()                                      returns (mo,)
-# cell 2:  lib_imports        params ()                                      returns (anthropic, settings, parse_signal_chain, format_tonal_target, map_components, load_schema, load_amp_cabinet_lookup, ComponentOutput, validate_phase2, validate_signal_chain_order)
-# cell 3:  header             params (mo,)                                   returns ()
-# cell 4:  query_input        params (mo,)                                   returns (phase1_input,)
-# cell 5:  run_phase2         params (phase1_input, anthropic, settings, parse_signal_chain, map_components, load_schema, load_amp_cabinet_lookup, ComponentOutput, validate_phase2, validate_signal_chain_order) returns (components, validated_comps, p2_result, order_result, schema)
-# cell 6:  validation_display params (mo, p2_result, order_result)           returns ()
-# cell 7:  component_table    params (mo, components)                        returns ()
-# cell 8:  param_drilldown    params (mo, validated_comps, schema)           returns ()
-# cell 9:  compact_view       params (mo, phase1_input, parse_signal_chain, format_tonal_target) returns ()
 
 
 @app.cell
@@ -91,7 +81,7 @@ def _(
 
     _client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
     _parsed = parse_signal_chain(phase1_input.value)
-    components = map_components(phase1_input.value, _parsed, _client)
+    components, _exemplars = map_components(phase1_input.value, _parsed, _client)
 
     schema = load_schema()
     _amp_cab = load_amp_cabinet_lookup()
@@ -108,7 +98,7 @@ def _(
     order_result = (
         validate_signal_chain_order(validated_comps, _amp_cab) if validated_comps else None
     )
-    return (components, order_result, p2_result, schema, validated_comps)
+    return components, order_result, p2_result, schema, validated_comps
 
 
 @app.cell
@@ -126,7 +116,8 @@ def _(mo, order_result, p2_result):
             items.append(mo.callout(mo.md("Phase 2 validation passed"), kind="success"))
         return mo.vstack(items)
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -148,7 +139,8 @@ def _(components, mo):
             )
         return mo.ui.table(rows, label="Component list")
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -184,7 +176,8 @@ def _(mo, schema, validated_comps):
 
         return mo.tabs(tabs)
 
-    return _()
+    _()
+    return
 
 
 @app.cell
@@ -196,7 +189,8 @@ def _(format_tonal_target, mo, parse_signal_chain, phase1_input):
         _compact = format_tonal_target(_parsed)
         return mo.md(f"### Compact tonal target sent to Phase 2\n\n```\n{_compact}\n```")
 
-    return _()
+    _()
+    return
 
 
 if __name__ == "__main__":

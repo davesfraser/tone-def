@@ -2,7 +2,7 @@
 
 ![CI](https://github.com/davesfraser/tone-def/actions/workflows/CI.yaml/badge.svg)
 
-> *"Give me Mark Knopfler from Dire Straits tone from the Brothers in Arms album"* → loadable Guitar Rig 7 preset, in seconds.
+> *"Give me Mark Knopfler from Dire Straits tone from the Brothers in Arms album"* → loadable Guitar Rig 7 preset, in just minutes
 
 ToneDef is a GenAI application that bridges the gap between *wanting* a guitar tone and *having* it
 loaded in your software. Describe a sound in natural language — referencing an artist, a recording,
@@ -21,7 +21,7 @@ component configuration, parameter values, and metadata into a single file.
 
 This is also a portfolio project demonstrating a multi-stage GenAI engineering pipeline: exemplar-first
 RAG retrieval, binary file format reverse engineering, structured LLM output with few-shot grounding,
-and a full offline data pipeline from raw presets to a searchable exemplar store.
+and a full offline data pipeline from raw presets and the GR7 user manual
 
 ---
 
@@ -32,12 +32,12 @@ slightly broken-up tone from a 1965 recording, or the fizzy aggressive grind of 
 album, requires knowing exactly what hardware was used, how it was configured, and which software
 component best approximates it. Amp simulation software (Guitar Rig, Helix, etc.) has become
 excellent — but it ships with 150+ components and thousands of parameters. The gap is not the
-tools. It is knowing what to load.
+tools. It is knowing what to load and how to set it up once you do.
 
-The manual path looks like this: find gear documentation for the artist → identify which pedals and
+The traditional path looks like this: find gear documentation for the artist → identify which pedals and
 amplifiers were used → find which Guitar Rig component maps to that hardware → configure each
-knob based on documented settings or reasonable estimates. That is 30 minutes of research for a
-single tone. ToneDef does it in seconds.
+knob based on documented settings or reasonable estimates. That can be hours of research for a
+single tone. ToneDef does it in minutes
 
 **What it does not do**: ToneDef is not a tone replication tool (it does its best...).
 When you ask about a specific recording, it performs *gear archaeology* — an informed reconstruction
@@ -166,13 +166,12 @@ its correct Matched Cabinet Pro speaker — this is not left to LLM inference.
 
 ### 3. Stratified RAG retrieval
 
-Phase 2 uses stratified retrieval across multiple ChromaDB collections:
+Phase 2 uses stratified retrieval across multiple collections:
 
-**Exemplar search**: `search_exemplars()` queries the exemplar collection with the full Phase 1
-signal chain to find the most tonally similar factory presets. These serve as starting points for
-LLM refinement.
+**Offline datastore: Exemplar search**: `search_exemplars()` queries the exemplar collection with the full Phase 1
+signal chain to find the most tonally similar factory presets. These serve as starting points for LLM refinement.
 
-**Manual chunk search**: `search_manual_for_categories()` performs category-stratified retrieval
+**ChromaDB vector store: Manual chunk search**: `search_manual_for_categories()` performs category-stratified retrieval
 across the GR7 manual chunks (amps, effects, cabinets), ensuring each component type gets
 represented in the context rather than allowing one dominant category to crowd out others.
 
@@ -225,7 +224,8 @@ src/tonedef/
     exemplar_store.py       build and query the preset exemplar dataset
     retriever.py            ChromaDB retrieval — exemplar search, manual chunk search, category-stratified search
     prompts.py              SYSTEM_PROMPT, EXEMPLAR_REFINEMENT_PROMPT
-    models.py               Pydantic models — ParsedSignalChain, ComponentOutput, PresetMetadata
+    models.py               Pydantic models — ComponentOutput
+    preset_builder.py       build_preset() and auto_preset_name() — final preset assembly
     pipeline.py             end-to-end orchestration — query → Phase 1 → Phase 2 → XML → .ngrr
     signal_chain_parser.py  parse Phase 1 LLM output into structured ParsedSignalChain
     validation.py           pure validation functions for Phase 1/2 output — user-facing messages
@@ -243,6 +243,7 @@ scripts/
     build_exemplar_index.py       index factory presets → exemplar_store.json
     build_amp_cabinet_lookup.py   build amp → Matched Cabinet Pro lookup table
     build_crp_lookup.py           validate Control Room Pro enum lookup
+    build_parameter_annotations.py  annotate parameter ranges from component_schema.json
     check_pipeline.py             verify all pipeline artefacts exist
     diagnose_pipeline.py          detailed pipeline diagnostic with intermediate outputs
 
@@ -254,7 +255,7 @@ data/
                           exemplar_store.json, gr_manual_chunks.json, crp_enum_lookup.json,
                           tonal_descriptors.json, chromadb/
 ```
-
+(you're basically skipping right to the fun part)
 ---
 
 ## Tech stack
