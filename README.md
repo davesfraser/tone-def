@@ -262,7 +262,7 @@ data/
                           exemplar_store.json, gr_manual_chunks.json, crp_enum_lookup.json,
                           tonal_descriptors.json, chromadb/
 ```
-(you're basically skipping right to the fun part)
+
 ---
 
 ## Tech stack
