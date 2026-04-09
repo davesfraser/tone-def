@@ -277,6 +277,7 @@ data/
 | Linting / formatting | Ruff |
 | Type checking | Mypy |
 | Testing | pytest |
+| Validation / config | Pydantic |
 
 ---
 
