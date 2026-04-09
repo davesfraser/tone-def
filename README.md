@@ -122,9 +122,7 @@ flowchart LR
 
     subgraph Indexing["Indexing"]
         H --> I[build_retrieval_index.py\nChromaDB ingestion]
-        I --> J[(ChromaDB\npersistent collection)]
-        G --> K[build_exemplar_index.py\nChromaDB exemplar index]
-        K --> L[(ChromaDB\nexemplar collection)]
+        I --> J[(ChromaDB\npersistent collection\nmanual chunks only)]
         E --> M[build_amp_cabinet_lookup.py\namp → Matched Cabinet Pro mapping]
         M --> N[amp_cabinet_lookup.json]
     end
@@ -156,8 +154,9 @@ This work lives in [`ngrr_parser.py`](src/tonedef/ngrr_parser.py) and
 ### 2. Exemplar-first component mapping
 
 Rather than mapping hardware names to GR7 components via a lookup table, ToneDef uses an
-exemplar-first approach. Phase 2 retrieves the top-5 most tonally similar factory presets from a
-ChromaDB exemplar index (1425 presets), retrieves relevant manual chunks for context, and asks the
+exemplar-first approach. Phase 2 scores all 1425 factory presets from `exemplar_store.json`
+using weighted Jaccard similarity on tonal tags and component names, selects the top-5 most
+similar matches, retrieves relevant manual chunks from ChromaDB for context, and asks the
 LLM to adjust the best exemplar to match the target tone. The LLM modifies components and
 parameters rather than building from scratch, producing more realistic and playable results.
 
@@ -166,22 +165,30 @@ its correct Matched Cabinet Pro speaker — this is not left to LLM inference.
 
 ### 3. Stratified RAG retrieval
 
-Phase 2 uses stratified retrieval across multiple collections:
+Phase 2 uses stratified retrieval across multiple data stores:
 
-**Offline datastore: Exemplar search**: `search_exemplars()` queries the exemplar collection with the full Phase 1
-signal chain to find the most tonally similar factory presets. These serve as starting points for LLM refinement.
+**JSON datastore: Exemplar search**: `search_exemplars()` scores every record in `exemplar_store.json`
+against the parsed Phase 1 tags and component names using weighted Jaccard similarity, returning the
+top-5 most tonally similar factory presets. These serve as starting points for LLM refinement.
 
-**ChromaDB vector store: Manual chunk search**: `search_manual_for_categories()` performs category-stratified retrieval
-across the GR7 manual chunks (amps, effects, cabinets), ensuring each component type gets
-represented in the context rather than allowing one dominant category to crowd out others.
+**ChromaDB vector store: Manual chunk lookup**: `get_manual_chunks_for_components()` fetches manual
+descriptions for components already present in the selected exemplars.
+
+**ChromaDB vector store: Category gap-fill**: `search_manual_for_categories()` performs category-stratified
+retrieval across the GR7 manual chunks (amps, effects, cabinets) for component types not already
+covered by the exemplar docs, ensuring each category gets represented in the context.
+
+**ChromaDB vector store: Tonal alternatives**: `search_manual_by_tonal_target()` searches for
+manual chunks most semantically similar to the full Phase 1 output, surfacing tonal swap candidates
+(e.g. alternative amps for the same tonal target) that the exemplars may not include.
 
 ### 4. Exemplar grounding
 
 To prevent the LLM from hallucinating implausible parameter combinations, phase 2 prompts are
 grounded with real examples. 1425 factory presets were parsed into structured records
 (component lists, tags, metadata) and stored in `exemplar_store.json`. At inference time,
-`search_exemplars()` retrieves the most tonally similar presets via ChromaDB search,
-and `format_exemplar_context()` formats them as few-shot examples injected into
+`search_exemplars()` retrieves the most tonally similar presets via tag and component Jaccard
+scoring, and `format_exemplar_context()` formats them as few-shot examples injected into
 `EXEMPLAR_REFINEMENT_PROMPT`.
 
 ### 5. Prompt engineering
@@ -222,7 +229,7 @@ src/tonedef/
     xml_builder.py          assemble non-fix-components XML from component JSON
     component_mapper.py     phase 2 orchestrator — exemplar retrieval, LLM refinement, cabinet enforcement
     exemplar_store.py       build and query the preset exemplar dataset
-    retriever.py            ChromaDB retrieval — exemplar search, manual chunk search, category-stratified search
+    retriever.py            exemplar scoring (JSON), manual chunk search (ChromaDB), category-stratified retrieval
     prompts.py              SYSTEM_PROMPT, EXEMPLAR_REFINEMENT_PROMPT
     models.py               Pydantic models — ComponentOutput
     preset_builder.py       build_preset() and auto_preset_name() — final preset assembly
