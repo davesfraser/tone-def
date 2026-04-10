@@ -48,9 +48,7 @@ class Settings(BaseSettings):
     # --- Paths ---
     # Directory containing Guitar Rig 7 factory presets (.ngrr files)
     # Leave empty if not available; build scripts will exit with a clear message
-    gr7_presets_dir: str = Field(
-        default="C:\\Program Files\\Common Files\\Native Instruments\\Guitar Rig 7\\Rack Presets"
-    )
+    gr7_presets_dir: str = Field(default="")
 
     # --- Logging ---
     # Controls file handler level; stderr is always WARNING+
