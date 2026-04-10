@@ -3401,6 +3401,7 @@ dependencies = [
     { name = "marimo" },
     { name = "pdfplumber" },
     { name = "prompt" },
+    { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
 ]
@@ -3453,6 +3454,7 @@ requires-dist = [
     { name = "marimo", specifier = ">=0.22.4" },
     { name = "pdfplumber", specifier = ">=0.11.9" },
     { name = "prompt", specifier = ">=0.4.1" },
+    { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
 ]

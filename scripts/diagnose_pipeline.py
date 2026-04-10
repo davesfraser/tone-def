@@ -1,4 +1,8 @@
-"""Diagnostic script — traces every step of map_components for a given query."""
+"""Diagnostic script — traces every step of map_components for a given query.
+
+Exemplar retrieval uses the JSON store (data/processed/exemplar_store.json),
+while manual reference retrieval uses ChromaDB (gr_manual collection).
+"""
 
 import json
 import re

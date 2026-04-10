@@ -12,8 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
-from tonedef.settings import settings
+from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED, GR7_PRESETS_DIR
 
 # ---------------------------------------------------------------------------
 # Expected artefacts
@@ -59,21 +58,9 @@ FILES: list[tuple[str, object, int, str]] = [
     ),
 ]
 
-# (label, collection_name, minimum_docs, fix_command)
-COLLECTIONS: list[tuple[str, str, int, str]] = [
-    (
-        "ChromaDB manual chunks",
-        "gr_manual",
-        100,
-        "uv run python scripts/build_retrieval_index.py",
-    ),
-    (
-        "ChromaDB exemplar presets",
-        "gr_exemplars",
-        1000,
-        "uv run python scripts/build_exemplar_index.py",
-    ),
-]
+MANUAL_COLLECTION_NAME = "gr_manual"
+MANUAL_COLLECTION_MIN_DOCS = 100
+MANUAL_COLLECTION_FIX = "uv run python scripts/build_retrieval_index.py"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -89,9 +76,7 @@ WARN = "\033[33m!\033[0m"
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent
 _SRC_DIR = _SCRIPTS_DIR.parent / "src" / "tonedef"
-_PRESETS_DIR = (
-    Path(settings.gr7_presets_dir) if settings.gr7_presets_dir else DATA_EXTERNAL / "presets"
-)
+_PRESETS_DIR = GR7_PRESETS_DIR
 
 
 def _newest_mtime(*paths: Path) -> float:
@@ -211,21 +196,24 @@ def _check_chromadb() -> list[str]:
         client = chromadb.PersistentClient(path=str(collection_path()))
         existing = {c.name for c in client.list_collections()}
 
-        for label, name, min_docs, fix in COLLECTIONS:
-            if name not in existing:
-                print(f"  {FAIL}  {label}: collection missing")
-                issues.append(f"{label}: run  {fix}")
+        if MANUAL_COLLECTION_NAME not in existing:
+            print(f"  {FAIL}  ChromaDB manual chunks: collection missing")
+            issues.append(f"ChromaDB manual chunks: run  {MANUAL_COLLECTION_FIX}")
+        else:
+            col = client.get_collection(MANUAL_COLLECTION_NAME)
+            count = col.count()
+            if count < MANUAL_COLLECTION_MIN_DOCS:
+                print(
+                    "  "
+                    f"{WARN}  ChromaDB manual chunks: only {count} documents "
+                    f"(expected ≥{MANUAL_COLLECTION_MIN_DOCS})"
+                )
+                issues.append(f"ChromaDB manual chunks: re-run  {MANUAL_COLLECTION_FIX}")
             else:
-                col = client.get_collection(name)
-                count = col.count()
-                if count < min_docs:
-                    print(f"  {WARN}  {label}: only {count} documents (expected ≥{min_docs})")
-                    issues.append(f"{label}: re-run  {fix}")
-                else:
-                    print(f"  {OK}  {label} ({count:,} documents)")
+                print(f"  {OK}  ChromaDB manual chunks ({count:,} documents)")
     except Exception as exc:
         print(f"  {WARN}  Could not connect to ChromaDB: {exc}")
-        issues.append("ChromaDB: run build_retrieval_index.py and build_exemplar_index.py")
+        issues.append("ChromaDB: run build_retrieval_index.py")
     return issues
 
 

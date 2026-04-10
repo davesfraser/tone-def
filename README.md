@@ -311,6 +311,11 @@ Edit `.env` and set:
   - **Windows**: `C:\Program Files\Common Files\Native Instruments\Guitar Rig 7\Rack Presets`
   - **macOS**: `/Library/Application Support/Native Instruments/Guitar Rig 7/Rack Presets`
 
+Code convention for presets path:
+
+- Canonical import: `from tonedef.paths import GR7_PRESETS_DIR`
+- Legacy alias: `OUTPUT_PRESETS` is deprecated and scheduled for removal after `2026-07-01`
+
 ### Download the Guitar Rig 7 manual
 
 Download the [Guitar Rig 7 manual PDF](https://www.native-instruments.com/fileadmin/ni_media/downloads/manuals/gr7/Guitar_Rig_7_Manual_English_07_09_23.pdf)

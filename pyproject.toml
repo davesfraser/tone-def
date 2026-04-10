@@ -33,6 +33,7 @@ dependencies = [
     "marimo>=0.22.4",
     "pdfplumber>=0.11.9",
     "prompt>=0.4.1",
+    "pydantic>=2.12.5",
     "pydantic-settings",
     "python-dotenv>=1.2.2",
 ]

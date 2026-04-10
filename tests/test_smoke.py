@@ -1,5 +1,7 @@
+import warnings
 from pathlib import Path
 
+import tonedef.paths as paths
 from tonedef import __version__
 from tonedef.paths import (
     DATA_DIR,
@@ -8,6 +10,7 @@ from tonedef.paths import (
     DATA_PROCESSED,
     DATA_RAW,
     FIGURES_DIR,
+    GR7_PRESETS_DIR,
     MODELS_DIR,
     NOTEBOOKS_DIR,
     project_root,
@@ -60,3 +63,13 @@ def test_all_path_constants_are_paths_under_root() -> None:
             "a directory may be missing from the template or paths.py "
             "references a folder that was never created"
         )
+
+
+def test_gr7_presets_path_alias_points_to_same_location() -> None:
+    assert isinstance(GR7_PRESETS_DIR, Path)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", DeprecationWarning)
+        legacy_alias = paths.OUTPUT_PRESETS
+
+    assert legacy_alias == GR7_PRESETS_DIR
+    assert any("deprecated" in str(w.message).lower() for w in caught)

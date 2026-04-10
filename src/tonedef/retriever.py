@@ -5,15 +5,15 @@ RAG retrieval layer for ToneDef Phase 2 (exemplar-first architecture).
 
 Provides:
   search_exemplars(query)
-      Retrieve tonally similar factory presets from the exemplar collection.
+    Retrieve tonally similar factory presets from exemplar_store.json.
   get_manual_chunks_for_components(names)
       Retrieve manual descriptions for specific GR7 components.
   search_manual_for_categories(query, exclude_names)
       Category-stratified manual search for components the exemplars lack.
 
-Build the persisted collections once with:
-    scripts/build_retrieval_index.py
-    scripts/build_exemplar_index.py
+Build required retrieval data once with:
+    scripts/build_retrieval_index.py  # ChromaDB manual chunks (gr_manual)
+    scripts/build_exemplar_index.py   # JSON exemplar store (exemplar_store.json)
 """
 
 from __future__ import annotations

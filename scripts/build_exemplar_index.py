@@ -11,13 +11,11 @@ Run once before using exemplar retrieval in map_components():
 """
 
 import json
-from pathlib import Path
 
 from tonedef.exemplar_store import build_exemplar_records
-from tonedef.paths import DATA_PROCESSED
-from tonedef.settings import settings
+from tonedef.paths import DATA_PROCESSED, GR7_PRESETS_DIR
 
-_PRESETS_DIR = Path(settings.gr7_presets_dir)
+_PRESETS_DIR = GR7_PRESETS_DIR
 _TAG_CATALOGUE_PATH = DATA_PROCESSED / "tag_catalogue.json"
 _SCHEMA_PATH = DATA_PROCESSED / "component_schema.json"
 _OUTPUT_PATH = DATA_PROCESSED / "exemplar_store.json"

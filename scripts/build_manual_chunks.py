@@ -2,7 +2,7 @@
 build_manual_chunks.py
 ----------------------
 Extracts per-component text chunks from the Guitar Rig 7 manual PDF and
-writes them to data/external/gr_manual_chunks.json.
+writes them to data/processed/gr_manual_chunks.json.
 
 Source: Guitar Rig 7 Manual (English)
 File:   data/external/Guitar_Rig_7_Manual_English_07_09_23.pdf
@@ -19,10 +19,10 @@ import sys
 from collections import Counter
 
 from tonedef.manual_parser import extract_full_text, parse_chunks
-from tonedef.paths import DATA_EXTERNAL
+from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
 
 MANUAL_PDF = DATA_EXTERNAL / "Guitar_Rig_7_Manual_English_07_09_23.pdf"
-OUTPUT_PATH = DATA_EXTERNAL / "gr_manual_chunks.json"
+OUTPUT_PATH = DATA_PROCESSED / "gr_manual_chunks.json"
 
 
 def main() -> None:
@@ -35,6 +35,8 @@ def main() -> None:
 
     full_text = extract_full_text(MANUAL_PDF)
     chunks = parse_chunks(full_text)
+
+    DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
 
     by_category = Counter(v["category"] for v in chunks.values())
 

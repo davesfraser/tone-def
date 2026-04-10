@@ -76,7 +76,7 @@ All produced by build scripts in `scripts/` and stored in `data/processed/`:
 | `exemplar_store.json`       | `build_exemplar_index.py`               |
 | `amp_cabinet_lookup.json`   | `build_amp_cabinet_lookup.py`           |
 | `parameter_annotations.json`| `build_parameter_annotations.py`        |
-| `chromadb/`                 | `build_retrieval_index.py` + `build_exemplar_index.py` |
+| `chromadb/`                 | `build_retrieval_index.py`                              |
 
 ---
 

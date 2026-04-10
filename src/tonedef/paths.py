@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
+
+from tonedef.settings import settings
 
 
 def project_root() -> Path:
@@ -26,7 +29,29 @@ DATA_INTERIM = DATA_DIR / "interim"  # partially processed
 DATA_PROCESSED = DATA_DIR / "processed"  # clean, analysis-ready outputs
 DATA_EXTERNAL = DATA_DIR / "external"  # third-party / downloaded data
 
-OUTPUT_PRESETS = DATA_PROCESSED / "output_presets"  # generated .ngrr presets
+# Canonical path for GR7 factory presets, configurable via GR7_PRESETS_DIR.
+GR7_PRESETS_DIR = (
+    Path(settings.gr7_presets_dir) if settings.gr7_presets_dir else DATA_EXTERNAL / "presets"
+)
+
+_OUTPUT_PRESETS_REMOVAL = "2026-07-01"
+
+
+def __getattr__(name: str) -> Path:
+    """Provide deprecated module attributes with warnings.
+
+    `OUTPUT_PRESETS` is retained as a legacy alias for one deprecation window.
+    """
+    if name == "OUTPUT_PRESETS":
+        warnings.warn(
+            "`OUTPUT_PRESETS` is deprecated and will be removed after "
+            f"{_OUTPUT_PRESETS_REMOVAL}; use `GR7_PRESETS_DIR` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return GR7_PRESETS_DIR
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 MODELS_DIR = project_root() / "models"  # serialised models and artefacts
 FIGURES_DIR = project_root() / "reports" / "figures"  # generated plots and charts
