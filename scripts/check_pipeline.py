@@ -7,19 +7,26 @@ Usage:
     uv run python scripts/check_pipeline.py
 """
 
-import json
-import os
 import sys
 from pathlib import Path
 
+from tonedef.health import (
+    check_chromadb,
+    check_env,
+    check_files,
+    check_schema_integrity,
+    check_staleness,
+)
 from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED, GR7_PRESETS_DIR
 
 # ---------------------------------------------------------------------------
-# Expected artefacts
+# Script-specific declarations
 # ---------------------------------------------------------------------------
 
-# (label, path, minimum_size_bytes, fix_command)
-FILES: list[tuple[str, object, int, str]] = [
+_SCRIPTS_DIR = Path(__file__).resolve().parent
+_SRC_DIR = _SCRIPTS_DIR.parent / "src" / "tonedef"
+
+FILES: list[tuple[str, Path, int, str]] = [
     (
         "Component schema",
         DATA_PROCESSED / "component_schema.json",
@@ -58,57 +65,16 @@ FILES: list[tuple[str, object, int, str]] = [
     ),
 ]
 
-MANUAL_COLLECTION_NAME = "gr_manual"
-MANUAL_COLLECTION_MIN_DOCS = 100
-MANUAL_COLLECTION_FIX = "uv run python scripts/build_retrieval_index.py"
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-OK = "\033[32m✓\033[0m"
-FAIL = "\033[31m✗\033[0m"
-WARN = "\033[33m!\033[0m"
-
-# ---------------------------------------------------------------------------
-# Staleness dependency map
-# ---------------------------------------------------------------------------
-
-_SCRIPTS_DIR = Path(__file__).resolve().parent
-_SRC_DIR = _SCRIPTS_DIR.parent / "src" / "tonedef"
-_PRESETS_DIR = GR7_PRESETS_DIR
-
-
-def _newest_mtime(*paths: Path) -> float:
-    """Return the newest mtime across all given paths.
-
-    For directories, checks all files recursively.
-    Silently returns 0.0 for paths that don't exist.
-    """
-    newest = 0.0
-    for p in paths:
-        if not p.exists():
-            continue
-        if p.is_dir():
-            for child in p.rglob("*"):
-                if child.is_file():
-                    newest = max(newest, child.stat().st_mtime)
-        else:
-            newest = max(newest, p.stat().st_mtime)
-    return newest
-
-
-# (artifact_path, label, [dependency_paths])
-_STALENESS_MAP: list[tuple[Path, str, list[Path]]] = [
+STALENESS_MAP: list[tuple[Path, str, list[Path]]] = [
     (
         DATA_PROCESSED / "component_schema.json",
         "Component schema",
-        [_SCRIPTS_DIR / "build_component_schema.py", _SRC_DIR / "ngrr_parser.py", _PRESETS_DIR],
+        [_SCRIPTS_DIR / "build_component_schema.py", _SRC_DIR / "ngrr_parser.py", GR7_PRESETS_DIR],
     ),
     (
         DATA_PROCESSED / "tag_catalogue.json",
         "Tag catalogue",
-        [_SCRIPTS_DIR / "build_tag_catalogue.py", _SRC_DIR / "ngrr_parser.py", _PRESETS_DIR],
+        [_SCRIPTS_DIR / "build_tag_catalogue.py", _SRC_DIR / "ngrr_parser.py", GR7_PRESETS_DIR],
     ),
     (
         DATA_PROCESSED / "gr_manual_chunks.json",
@@ -118,144 +84,24 @@ _STALENESS_MAP: list[tuple[Path, str, list[Path]]] = [
     (
         DATA_PROCESSED / "exemplar_store.json",
         "Exemplar store",
-        [_SCRIPTS_DIR / "build_exemplar_index.py", _SRC_DIR / "ngrr_parser.py", _PRESETS_DIR],
+        [_SCRIPTS_DIR / "build_exemplar_index.py", _SRC_DIR / "ngrr_parser.py", GR7_PRESETS_DIR],
     ),
     (
         DATA_PROCESSED / "amp_cabinet_lookup.json",
         "Amp-cabinet lookup",
-        [
-            _SCRIPTS_DIR / "build_amp_cabinet_lookup.py",
-            DATA_PROCESSED / "exemplar_store.json",
-        ],
+        [_SCRIPTS_DIR / "build_amp_cabinet_lookup.py", DATA_PROCESSED / "exemplar_store.json"],
     ),
     (
         DATA_PROCESSED / "chromadb",
         "ChromaDB index",
-        [
-            _SCRIPTS_DIR / "build_retrieval_index.py",
-            DATA_PROCESSED / "gr_manual_chunks.json",
-        ],
+        [_SCRIPTS_DIR / "build_retrieval_index.py", DATA_PROCESSED / "gr_manual_chunks.json"],
     ),
     (
         DATA_PROCESSED / "parameter_annotations.json",
         "Parameter annotations",
-        [
-            _SCRIPTS_DIR / "build_parameter_annotations.py",
-            DATA_PROCESSED / "component_schema.json",
-        ],
+        [_SCRIPTS_DIR / "build_parameter_annotations.py", DATA_PROCESSED / "component_schema.json"],
     ),
 ]
-
-
-def _check_staleness() -> list[str]:
-    issues: list[str] = []
-    print("\nStaleness")
-    print("---------")
-    for artifact_path, label, deps in _STALENESS_MAP:
-        if not artifact_path.exists():
-            # Missing files are already reported by _check_files
-            continue
-        artifact_mtime = _newest_mtime(artifact_path)
-        dep_mtime = _newest_mtime(*deps)
-        if dep_mtime > artifact_mtime:
-            stale_deps = [p.name for p in deps if p.exists() and _newest_mtime(p) > artifact_mtime]
-            print(f"  {WARN}  {label}: may be stale (newer: {', '.join(stale_deps)})")
-            issues.append(f"{label}: may be stale — rebuild may be needed")
-        else:
-            print(f"  {OK}  {label}")
-    return issues
-
-
-def _check_files() -> list[str]:
-    issues: list[str] = []
-    print("\nData files")
-    print("----------")
-    for label, path, min_bytes, fix in FILES:
-        if not path.exists():  # type: ignore[union-attr]
-            print(f"  {FAIL}  {label}: MISSING")
-            issues.append(f"{label}: run  {fix}")
-        else:
-            size = os.path.getsize(path)  # type: ignore[arg-type]
-            if size < min_bytes:
-                print(f"  {WARN}  {label}: suspiciously small ({size:,} bytes)")
-                issues.append(f"{label}: may be empty — run  {fix}")
-            else:
-                print(f"  {OK}  {label} ({size:,} bytes)")
-    return issues
-
-
-def _check_chromadb() -> list[str]:
-    issues: list[str] = []
-    print("\nChromaDB collections")
-    print("--------------------")
-    try:
-        import chromadb  # type: ignore[import-untyped]
-
-        from tonedef.retriever import collection_path
-
-        client = chromadb.PersistentClient(path=str(collection_path()))
-        existing = {c.name for c in client.list_collections()}
-
-        if MANUAL_COLLECTION_NAME not in existing:
-            print(f"  {FAIL}  ChromaDB manual chunks: collection missing")
-            issues.append(f"ChromaDB manual chunks: run  {MANUAL_COLLECTION_FIX}")
-        else:
-            col = client.get_collection(MANUAL_COLLECTION_NAME)
-            count = col.count()
-            if count < MANUAL_COLLECTION_MIN_DOCS:
-                print(
-                    "  "
-                    f"{WARN}  ChromaDB manual chunks: only {count} documents "
-                    f"(expected ≥{MANUAL_COLLECTION_MIN_DOCS})"
-                )
-                issues.append(f"ChromaDB manual chunks: re-run  {MANUAL_COLLECTION_FIX}")
-            else:
-                print(f"  {OK}  ChromaDB manual chunks ({count:,} documents)")
-    except Exception as exc:
-        print(f"  {WARN}  Could not connect to ChromaDB: {exc}")
-        issues.append("ChromaDB: run build_retrieval_index.py")
-    return issues
-
-
-def _check_schema_integrity() -> list[str]:
-    issues: list[str] = []
-    print("\nSchema integrity")
-    print("----------------")
-    schema_path = DATA_PROCESSED / "component_schema.json"
-    lookup_path = DATA_PROCESSED / "amp_cabinet_lookup.json"
-
-    if schema_path.exists():
-        with open(schema_path) as f:
-            schema: dict = json.load(f)
-        print(f"  {OK}  Component schema: {len(schema)} components")
-    else:
-        print(f"  {FAIL}  Component schema: missing")
-        issues.append("component_schema.json missing — run build_component_schema.py")
-
-    if lookup_path.exists():
-        with open(lookup_path) as f:
-            lookup: dict = json.load(f)
-        print(f"  {OK}  Amp-cabinet lookup: {len(lookup)} entries")
-    else:
-        print(f"  {FAIL}  Amp-cabinet lookup: missing")
-        issues.append("amp_cabinet_lookup.json missing — run build_amp_cabinet_lookup.py")
-    return issues
-
-
-def _check_env() -> list[str]:
-    issues: list[str] = []
-    print("\nEnvironment")
-    print("-----------")
-    from tonedef.settings import settings
-
-    api_key = settings.anthropic_api_key.get_secret_value()
-
-    if api_key and api_key.startswith("sk-ant-"):
-        print(f"  {OK}  ANTHROPIC_API_KEY: set")
-    else:
-        print(f"  {FAIL}  ANTHROPIC_API_KEY: not set")
-        issues.append("ANTHROPIC_API_KEY: add to .env")
-    return issues
 
 
 # ---------------------------------------------------------------------------
@@ -268,13 +114,13 @@ def main() -> None:
     print("======================")
 
     all_issues: list[str] = []
-    all_issues += _check_files()
-    all_issues += _check_chromadb()
-    all_issues += _check_schema_integrity()
-    all_issues += _check_env()
+    all_issues += check_files(FILES)
+    all_issues += check_chromadb("gr_manual", 100, "uv run python scripts/build_retrieval_index.py")
+    all_issues += check_schema_integrity()
+    all_issues += check_env()
 
     # Staleness is advisory — warn but don't block the app from running.
-    stale_warnings = _check_staleness()
+    stale_warnings = check_staleness(STALENESS_MAP)
 
     print()
     if all_issues:

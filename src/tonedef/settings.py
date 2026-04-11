@@ -70,5 +70,5 @@ class Settings(BaseSettings):
 
 
 # A single shared instance for import throughout the project
-# Usage: from {{ package_name }}.settings import settings
+# Usage: from tonedef.settings import settings
 settings = Settings()
