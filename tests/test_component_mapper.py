@@ -14,12 +14,15 @@ from tonedef.component_mapper import (
     _find_amp_index,
     _find_amp_name,
     _make_matched_cabinet_pro,
+    _normalize_name,
     _validate_crp_params,
     build_cabinet_lookup_context,
     build_component_schema_context,
     build_crp_reference_context,
     build_manual_reference_context,
+    build_name_lookup,
     fill_defaults,
+    resolve_component_names,
 )
 
 # ---------------------------------------------------------------------------
@@ -726,6 +729,119 @@ def test_llm_emitted_cabinet_stripped_before_insertion() -> None:
     assert names == ["Tube Screamer", "Lead 800", "Matched Cabinet Pro", "Solid EQ"]
     # Only one cabinet total
     assert sum(1 for c in components if "cabinet" in str(c["component_name"]).lower()) == 1
+
+
+# ---------------------------------------------------------------------------
+# Component name resolution
+# ---------------------------------------------------------------------------
+
+_MINI_SCHEMA: dict = {
+    "Wahwah": {"component_id": 21000, "parameters": []},
+    "IceVerb": {"component_id": 100000, "parameters": []},
+    "AutoFilter": {"component_id": 19000, "parameters": []},
+    "Solid Buscomp": {"component_id": 120000, "parameters": []},
+    "AC Box XV": {"component_id": 72000, "parameters": []},
+    "PsycheDelay": {"component_id": 95000, "parameters": []},
+    "EQ Graphic": {"component_id": 82000, "parameters": []},
+    "Volume Pedal": {"component_id": 6000, "parameters": []},
+    "Demon": {"component_id": 50000, "parameters": []},
+}
+
+
+def test_normalize_name_strips_spaces() -> None:
+    assert _normalize_name("Wah Wah") == "wahwah"
+
+
+def test_normalize_name_strips_hyphens() -> None:
+    assert _normalize_name("Wah-Wah") == "wahwah"
+
+
+def test_normalize_name_strips_apostrophes() -> None:
+    assert _normalize_name("Traktor's Delay") == "traktorsdelay"
+
+
+def test_build_name_lookup_contains_schema_keys() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    assert lookup["wahwah"] == "Wahwah"
+    assert lookup["iceverb"] == "IceVerb"
+    assert lookup["autofilter"] == "AutoFilter"
+
+
+def test_build_name_lookup_contains_aliases() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    assert lookup["equalizergraphic"] == "EQ Graphic"
+    assert lookup["volume"] == "Volume Pedal"
+    assert lookup["demondistortion"] == "Demon"
+
+
+def test_resolve_wah_wah() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Wah Wah", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "Wahwah"
+
+
+def test_resolve_iceverb_case() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Iceverb", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "IceVerb"
+
+
+def test_resolve_solid_bus_comp_spacing() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Solid Bus Comp", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "Solid Buscomp"
+
+
+def test_resolve_auto_filter_spacing() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Auto Filter", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "AutoFilter"
+
+
+def test_resolve_psyche_delay_spacing() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Psyche Delay", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "PsycheDelay"
+
+
+def test_resolve_ac_box_capitalization() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "AC BOX XV", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "AC Box XV"
+
+
+def test_resolve_alias_equalizer_graphic() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Equalizer Graphic", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "EQ Graphic"
+
+
+def test_resolve_alias_volume() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Volume", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "Volume Pedal"
+
+
+def test_resolve_exact_match_no_change() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Wahwah", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "Wahwah"
+
+
+def test_resolve_unknown_name_unchanged() -> None:
+    lookup = build_name_lookup(_MINI_SCHEMA)
+    comps = [{"component_name": "Totally Fake", "parameters": {}}]
+    resolve_component_names(comps, lookup)
+    assert comps[0]["component_name"] == "Totally Fake"
 
 
 def test_cabinet_ordering_with_multiple_post_effects() -> None:

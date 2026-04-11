@@ -61,6 +61,51 @@ _CONTROL_ROOM_NAMES: frozenset[str] = frozenset(
 
 
 # ---------------------------------------------------------------------------
+# Component name resolution
+# ---------------------------------------------------------------------------
+
+# Manual-to-schema aliases for structural renames that normalisation alone
+# cannot resolve (abbreviations, added/dropped suffixes, etc.).
+_NAME_ALIASES: dict[str, str] = {
+    "equalizergraphic": "EQ Graphic",
+    "equalizerparametric": "EQ Parametric",
+    "equalizershelving": "EQ Shelving",
+    "demondistortion": "Demon",
+    "volume": "Volume Pedal",
+    "flangerchorus": "Flanger",
+}
+
+
+def _normalize_name(name: str) -> str:
+    """Lowercase and strip spaces, hyphens, and apostrophes."""
+    return re.sub(r"[\s\-']", "", name).lower()
+
+
+def build_name_lookup(schema: dict) -> dict[str, str]:
+    """Build a normalised-key → canonical-name lookup from schema keys."""
+    lookup: dict[str, str] = {}
+    for canonical in schema:
+        lookup[_normalize_name(canonical)] = canonical
+    # Layer aliases on top (aliases win when there's a conflict)
+    lookup.update(_NAME_ALIASES)
+    return lookup
+
+
+def resolve_component_names(
+    components: list[dict],
+    lookup: dict[str, str],
+) -> list[dict]:
+    """Replace each component_name with its canonical schema name if found."""
+    for comp in components:
+        raw_name = comp.get("component_name", "")
+        canonical = lookup.get(_normalize_name(raw_name))
+        if canonical and canonical != raw_name:
+            _log.info("Resolved component name %r → %r", raw_name, canonical)
+            comp["component_name"] = canonical
+    return components
+
+
+# ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
 
@@ -661,6 +706,10 @@ def map_components(
     components: list[dict] = (
         [v.model_dump() for v in validated] if len(validated) == len(raw_list) else raw_list
     )
+
+    # 9. Resolve LLM component names to canonical schema names.
+    name_lookup = build_name_lookup(schema)
+    components = resolve_component_names(components, name_lookup)
 
     # 9a. Extract LLM cabinet params BEFORE fill_defaults so we can
     # distinguish explicit LLM choices from schema-default backfills.

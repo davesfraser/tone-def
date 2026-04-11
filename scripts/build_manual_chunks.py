@@ -18,6 +18,7 @@ import json
 import sys
 from collections import Counter
 
+from tonedef.component_mapper import _normalize_name, build_name_lookup, load_schema
 from tonedef.manual_parser import extract_full_text, parse_chunks
 from tonedef.paths import DATA_EXTERNAL, DATA_PROCESSED
 
@@ -35,6 +36,25 @@ def main() -> None:
 
     full_text = extract_full_text(MANUAL_PDF)
     chunks = parse_chunks(full_text)
+
+    # Remap manual chunk keys to canonical schema names where possible.
+    schema = load_schema()
+    lookup = build_name_lookup(schema)
+    remapped: dict[str, dict[str, str]] = {}
+    renames: list[tuple[str, str]] = []
+    for manual_name, value in chunks.items():
+        canonical = lookup.get(_normalize_name(manual_name))
+        if canonical and canonical != manual_name:
+            renames.append((manual_name, canonical))
+            remapped[canonical] = value
+        else:
+            remapped[manual_name] = value
+    chunks = remapped
+
+    if renames:
+        print(f"\nRenamed {len(renames)} chunk(s) to match schema:")
+        for old, new in renames:
+            print(f"  {old} → {new}")
 
     DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
 
