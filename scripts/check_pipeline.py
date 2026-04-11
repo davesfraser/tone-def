@@ -246,24 +246,15 @@ def _check_env() -> list[str]:
     issues: list[str] = []
     print("\nEnvironment")
     print("-----------")
-    from dotenv import load_dotenv
+    from tonedef.settings import settings
 
-    load_dotenv()
-    api_key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
-    placeholder_values = {
-        "your-key-here",
-        "your_key_here",
-        "changeme",
-        "change-me",
-        "placeholder",
-        "<your-key-here>",
-    }
+    api_key = settings.anthropic_api_key.get_secret_value()
 
-    if (not api_key) or (api_key.lower() in placeholder_values):
+    if api_key and api_key.startswith("sk-ant-"):
+        print(f"  {OK}  ANTHROPIC_API_KEY: set")
+    else:
         print(f"  {FAIL}  ANTHROPIC_API_KEY: not set")
         issues.append("ANTHROPIC_API_KEY: add to .env")
-    else:
-        print(f"  {OK}  ANTHROPIC_API_KEY: set")
     return issues
 
 
