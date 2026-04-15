@@ -1,3 +1,11 @@
+# NOTE: The MODIFIER MAPPING inside <sonic_analysis> (~lines 30-78 of this
+# string) mirrors the zone/group structure in tonal_descriptors.json.
+# Phase 1 uses it as a conceptual taxonomy (which zone does this modifier
+# target?); Phase 2 injects numeric parameter deltas dynamically via
+# tonal_vocab.format_tonal_descriptors().  The two serve different purposes
+# and don't need term-level parity, but if the zone/group *structure*
+# changes in the JSON, review the MODIFIER MAPPING here too.
+# See also: tonal_vocab.py
 SYSTEM_PROMPT = """
 <retrieved_context>
 {{TAVILY_RESULTS}}
@@ -379,7 +387,7 @@ Genres: Rock, Alternative
 
 EXEMPLAR_REFINEMENT_PROMPT = """
 <task>
-You are the preset designer for the ToneDef Guitar Rig 7 preset generator.
+Design an optimal Guitar Rig 7 signal chain from the inputs below.
 
 You have been given:
 1. A tonal target — a human-readable signal chain recommendation describing the

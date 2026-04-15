@@ -18,6 +18,9 @@ from functools import lru_cache
 
 from tonedef.paths import DATA_PROCESSED
 
+# NOTE: SYSTEM_PROMPT in prompts.py has a hardcoded conceptual copy of the
+# modifier taxonomy (zones, groups, terms) used by Phase 1 for signal chain
+# routing.  If the zone/group structure here changes, review that copy too.
 _DESCRIPTORS_PATH = DATA_PROCESSED / "tonal_descriptors.json"
 
 # Zones relevant to each chain type
