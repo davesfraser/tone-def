@@ -28,12 +28,12 @@ license = { file = "LICENSE" }
 # settings.py uses pydantic-settings for typed, auditable runtime configuration
 # This handles .env loading, environment variable overrides, and type coercion
 dependencies = [
-    "anthropic>=0.94.0",
-    "chromadb>=1.5.7",
-    "marimo>=0.23.1",
+    "anthropic>=0.97.0",
+    "chromadb>=1.5.8",
+    "marimo>=0.23.3",
     "pdfplumber>=0.11.9",
     "prompt>=0.4.1",
-    "pydantic>=2.12.5",
+    "pydantic>=2.13.3",
     "pydantic-settings",
     "python-dotenv>=1.2.2",
 ]
