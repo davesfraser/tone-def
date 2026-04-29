@@ -4,15 +4,23 @@ from pathlib import Path
 import tonedef.paths as paths
 from tonedef import __version__
 from tonedef.paths import (
+    CACHE_DIR,
     DATA_DIR,
     DATA_EXTERNAL,
     DATA_INTERIM,
     DATA_PROCESSED,
     DATA_RAW,
+    EVALS_DATASETS_DIR,
+    EVALS_DIR,
+    EVALS_GOLDEN_DIR,
+    EVALS_RESULTS_DIR,
     FIGURES_DIR,
     GR7_PRESETS_DIR,
+    INDEXES_DIR,
     MODELS_DIR,
     NOTEBOOKS_DIR,
+    PROMPT_TEMPLATES_DIR,
+    TRACES_DIR,
     project_root,
 )
 from tonedef.settings import settings
@@ -34,6 +42,13 @@ def test_settings_loads() -> None:
     assert settings.environment in {"development", "production"}
     assert isinstance(settings.gr7_presets_dir, str)
     assert isinstance(settings.anthropic_api_key.get_secret_value(), str)
+    assert settings.provider_primary == "anthropic"
+    assert settings.default_model.startswith("anthropic/")
+    assert settings.max_tokens >= 1
+    assert settings.request_timeout_seconds > 0
+    assert settings.retry_max_attempts >= 1
+    assert isinstance(settings.cache_enabled, bool)
+    assert settings.trace_backend == "none"
     assert 0.0 <= settings.phase1_temperature <= 2.0
     assert 0.0 <= settings.phase2_temperature <= 2.0
 
@@ -46,9 +61,13 @@ def test_all_path_constants_are_paths_under_root() -> None:
         DATA_INTERIM,
         DATA_PROCESSED,
         DATA_RAW,
+        EVALS_DATASETS_DIR,
+        EVALS_DIR,
+        EVALS_GOLDEN_DIR,
         FIGURES_DIR,
         MODELS_DIR,
         NOTEBOOKS_DIR,
+        PROMPT_TEMPLATES_DIR,
     ]
 
     for p in constants:
@@ -65,6 +84,20 @@ def test_all_path_constants_are_paths_under_root() -> None:
             "a directory may be missing from the template or paths.py "
             "references a folder that was never created"
         )
+
+
+def test_dormant_artifact_path_constants_are_under_root() -> None:
+    root = project_root()
+    constants = [
+        CACHE_DIR,
+        EVALS_RESULTS_DIR,
+        INDEXES_DIR,
+        TRACES_DIR,
+    ]
+
+    for p in constants:
+        assert isinstance(p, Path), f"Expected Path, got {type(p)}"
+        assert p.is_relative_to(root)
 
 
 def test_gr7_presets_path_alias_points_to_same_location() -> None:
