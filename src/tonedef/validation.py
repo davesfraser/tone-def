@@ -1,4 +1,3 @@
-# applied-skills: ds-workflow
 """Pipeline validation functions.
 
 Each ``validate_*`` function is **pure** — no side-effects, no logging.

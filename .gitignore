@@ -70,3 +70,10 @@ reports/figures/*
 
 # Local template render target — throwaway, never commit
 .rendered/
+
+# AI engineering artifacts
+# Rebuildable or sensitive outputs should stay out of source control
+evals/results/
+indexes/
+traces/
+cache/

@@ -45,14 +45,15 @@ dev = [
     "ruff",
     "mypy",
     # ty is Astral's next-generation type checker — faster than mypy but pre-1.0
-    # as of early 2026, meaning it can produce false positives on complex library
-    # types (polars, numpy, scipy) that mypy handles reliably
+    # as of early 2026, meaning it can produce false positives on complex
+    # library types that mypy handles reliably
     # To try it: uv add --dev ty, then run: uv run ty check
     # Switch it in here when ty reaches stable and you have verified it handles
     # your codebase cleanly — track releases at https://github.com/astral-sh/ty
     # "ty",
     "pytest",
     "pytest-cov",
+    "pytest-recording",
     "pre-commit",
 ]
 # marimo is the notebook/app workflow for this template,
@@ -69,44 +70,8 @@ data = [
     "pyarrow",
 ]
 
-data-pandas = [
-    "pandas",
-    "pandas-stubs",
-]
-
-# Classical statistics and hypothesis testing
-# SciPy provides scipy.stats tests, distributions, resampling
-# statsmodels provides verbose summaries and formula based modelling
-stats = [
-  "scipy",
-  "statsmodels",
-]
-
-# Runtime dataframe validation
-# pandera supports multiple dataframe libraries, including pandas and polars
-validation = [
-    "pandera[polars]",
-]
-
-# Static plotting / publication-style figures / EDA
-vis-static = [
-    "matplotlib",
-    "seaborn",
-]
-
-# Interactive plots for exploration, demos, and marimo apps
-vis-interactive = [
-    "plotly",
-]
-
-# Small, portable default ML group
-# scikit-learn is still the best baseline starter for many DS projects
-ml = [
-    "scikit-learn",
-]
-
 # Application front end development group
-# Streamlit is the best/easiest for interactive DS projects
+# Streamlit powers the local ToneDef app UI
 app = [
     "streamlit",
 ]
@@ -116,7 +81,7 @@ app = [
 # plain "uv sync" installs the base project + dev tools
 # Other groups stay opt-in so the starter doesn't become bloated by default
 # i.e. you'll need to explicitly tell uv to install them...
-default-groups = ["dev", "notebook", "data", "stats", "app"]
+default-groups = ["dev", "notebook", "data", "app"]
 
 [tool.hatch.build.targets.wheel]
 # Keep src imports honest and let CI catch packaging drift
@@ -145,9 +110,14 @@ addopts = [
     "--cov=tonedef",
     "--cov-report=term-missing:skip-covered",
     "--cov-fail-under=75",
+    "--record-mode=none",
 ]
 markers = [
+    "eval: offline or mocked LLM evaluation tests",
     "integration: end-to-end tests with mocked LLM responses",
+    "live_api: tests that call live external APIs and must not run in default CI",
+    "rag: retrieval augmented generation tests",
+    "slow: tests that are intentionally slower than the normal unit suite",
 ]
 
 # If an expected-fail test suddenly passes, show it
@@ -174,7 +144,7 @@ exclude_also = [
 ]
 
 [tool.ruff]
-# 100 is a practical line length for DS code, chain-heavy code, and docstrings
+# 100 is a practical line length for app code, chain-heavy code, and docstrings
 line-length = 100
 
 # Tell Ruff that src/ is the package root for import classification
@@ -184,7 +154,7 @@ src = ["src"]
 # is identical regardless of which Python interpreter is actually running.
 target-version = "py313"
 
-# Ignore non-code artifact areas common in DS repos
+# Ignore non-code artifact areas
 # This keeps Ruff focused on real source files
 extend-exclude = [
     "data",
@@ -212,8 +182,8 @@ select = [
     "RUF",  # Ruff-native rules
     # ANN enforces type annotations on all function arguments and return values
     # in src/ — this is intentionally strict and reflects the template's view
-    # that analytical code benefits from explicit types for readability and
-    # for catching subtle bugs (wrong return type, unexpected None, etc)
+    # that reusable code benefits from explicit types for readability and for
+    # catching subtle bugs (wrong return type, unexpected None, etc)
     #
     # If this feels too aggressive for your project's current stage, you can
     # relax it in two ways:
@@ -228,13 +198,10 @@ select = [
     # Add whichever you want to the ignore list below
     "ANN",  # type annotation coverage
     "NPY",  # NumPy-specific checks
-    "PD",   # pandas-vet rules
 ]
 
 ignore = [
     "ANN401", # don't force removal of Any everywhere
-    "PD008",  # allow .at
-    "PD009",  # allow .iat
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -285,7 +252,7 @@ output-format = "concise"
 # It is run in CI and can be run locally with: uv run mypy src tests
 #
 # strict mode is intentionally off — it requires annotations everywhere
-# including on third-party code, which is too aggressive for analytical projects
+# including on third-party code, which is too aggressive for many projects
 # The settings below give you reliable, trustworthy errors without that overhead
 [tool.mypy]
 python_version = "3.13"
@@ -300,8 +267,7 @@ warn_unused_configs = true
 warn_unreachable = true
 
 # Don't crash on missing stubs for third-party libraries
-# Many DS libraries have partial or missing stubs — this makes mypy usable
-# without requiring stub packages for every dependency
+# This keeps mypy usable without requiring stub packages for every dependency
 ignore_missing_imports = true
 
 # Check the bodies of functions that have no annotations
@@ -310,9 +276,3 @@ check_untyped_defs = true
 
 # Disallow calling untyped functions from typed ones
 disallow_untyped_calls = false
-
-# Per-module overrides for libraries with known stub gaps
-[[tool.mypy.overrides]]
-# statsmodels has limited stubs — silence the noise until upstream improves
-module = ["statsmodels.*"]
-ignore_errors = true

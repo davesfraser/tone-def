@@ -1,4 +1,3 @@
-# applied-skills: ds-workflow
 """Pydantic models for pipeline output validation.
 
 ``ComponentOutput`` validates the JSON dicts emitted by the Phase 2 LLM call.

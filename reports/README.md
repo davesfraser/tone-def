@@ -1,34 +1,33 @@
-# Reports — ToneDef
+# Reports - ToneDef
 
-This directory contains analytical reports produced from this project.
+This directory contains project notes, architecture summaries, and validation
+write-ups for ToneDef.
 
 ---
 
 ## Report template
 
-Each report should follow this structure:
+Use this structure for substantial project reports when it fits:
 ```
-## Research question
+## Question
 One sentence stating what this report answers.
 
-## Data
+## Inputs
 - Source:
 - Version / date:
-- Rows:
 - Key limitations:
 
-## Method
-Brief description of the analytical approach and why it was chosen.
+## Method or approach
+Brief description of the approach and why it was chosen.
 
 ## Findings
-Primary findings with effect sizes and confidence intervals.
-Statistical significance reported alongside practical significance.
+Primary findings and practical implications.
 
-## Visualisations
-References to figures in reports/figures/ with a brief description of each.
+## Artifacts
+References to code, data files, notebooks, diagrams, or generated presets.
 
 ## Limitations and caveats
-What this analysis cannot conclude. Alternative explanations.
+What this report cannot conclude.
 
 ## Rejected approaches
 What was tried and why it was not used.
@@ -41,4 +40,4 @@ What was tried and why it was not used.
 reports/YYYY-MM-DD_<short-description>.md
 ```
 
-Example: `reports/2025-03-01_price-drivers-analysis.md`
+Example: `reports/2026-04-29_prompt-validation.md`

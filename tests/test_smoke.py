@@ -31,9 +31,11 @@ def test_project_root_exists() -> None:
 
 def test_settings_loads() -> None:
     # Verify settings initialises without errors and returns typed values
-    assert isinstance(settings.alpha, float)
-    assert isinstance(settings.min_sample_size, int)
     assert settings.environment in {"development", "production"}
+    assert isinstance(settings.gr7_presets_dir, str)
+    assert isinstance(settings.anthropic_api_key.get_secret_value(), str)
+    assert 0.0 <= settings.phase1_temperature <= 2.0
+    assert 0.0 <= settings.phase2_temperature <= 2.0
 
 
 def test_all_path_constants_are_paths_under_root() -> None:

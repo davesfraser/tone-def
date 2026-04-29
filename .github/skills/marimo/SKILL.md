@@ -1,7 +1,7 @@
 ---
 name: marimo
 description: >
-  Use when creating, writing, editing, or debugging marimo notebooks for Data science project.
+  Use when creating, writing, editing, or debugging marimo notebooks for ToneDef.
   Activate for any .py file containing @app.cell decorators, marimo notebook
   structure, reactive execution, cell outputs, UI elements, dataframe display,
   plotting, layout, mo.md, mo.ui, mo.hstack, mo.vstack, marimo App definition,
@@ -10,7 +10,7 @@ description: >
 user-invocable: true
 ---
 
-# Marimo Notebook Standards — Data science project
+# Marimo Notebook Standards - ToneDef
 
 ---
 
@@ -98,7 +98,7 @@ def _(df):
 ```
 
 **Pattern 2 — inner `def _():`:** use for cells where most variables are
-throwaway — plots, statistical summaries, temporary subsets. Variables inside
+throwaway cells, diagnostics, temporary subsets. Variables inside
 the function are fully local and common names like `fig`, `ax`, `result`,
 `stats` can be reused freely across multiple cells without conflict.
 Call the function as the last expression with `return _()`:
@@ -187,7 +187,7 @@ RULE: Call the inner function as the last expression: `return _()`.
 RULE: Call `plt.tight_layout()` inside the inner function before returning.
 RULE: For plotly / altair — return the figure object directly as the last
 expression, no inner function needed.
-RULE: Save figures to `FIGURES_DIR` from `tonedef.paths`.
+RULE: Use path constants from `tonedef.paths` when saving notebook artifacts.
 ```python
 # correct — single axes
 @app.cell
@@ -284,7 +284,7 @@ RULE: Use `mo.stop(condition, mo.md("reason"))` to halt a cell and its dependent
 # notebook-conventions
 
 RULE: One notebook, one question.
-RULE: All reusable logic belongs in `src/data_science_project` — notebooks call functions, they do not reimplement them.
+RULE: All reusable logic belongs in `src/tonedef` - notebooks call functions, they do not reimplement them.
 RULE: Keep data loading cells at the top.
 RULE: Use descriptive cell function names when the cell has a clear purpose — e.g. `def load_raw_data_(pl):`.
 RULE: Use `@app.cell(hide_code=True)` for cells where the output is the point.
