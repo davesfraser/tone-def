@@ -30,6 +30,7 @@ license = { file = "LICENSE" }
 dependencies = [
     "anthropic>=0.97.0",
     "chromadb>=1.5.8",
+    "jinja2",
     "marimo>=0.23.4",
     "pdfplumber>=0.11.9",
     "prompt>=0.4.1",
@@ -70,6 +71,16 @@ data = [
     "pyarrow",
 ]
 
+llm = [
+    "instructor",
+    "litellm",
+    "tenacity",
+]
+
+eval = [
+    "deepeval",
+]
+
 # Application front end development group
 # Streamlit powers the local ToneDef app UI
 app = [
@@ -81,7 +92,7 @@ app = [
 # plain "uv sync" installs the base project + dev tools
 # Other groups stay opt-in so the starter doesn't become bloated by default
 # i.e. you'll need to explicitly tell uv to install them...
-default-groups = ["dev", "notebook", "data", "app"]
+default-groups = ["dev", "notebook", "data", "llm", "app"]
 
 [tool.hatch.build.targets.wheel]
 # Keep src imports honest and let CI catch packaging drift

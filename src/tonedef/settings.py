@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -32,6 +34,28 @@ class Settings(BaseSettings):
     # Set to "production" in any shared or scheduled run environment
     environment: str = Field(default="development")
 
+    # --- Dormant AI-template client settings ---
+    # These support tonedef.client for future migrations. Existing ToneDef
+    # pipeline calls still use the direct Anthropic SDK path.
+    provider_primary: str = Field(default="anthropic")
+    default_model: str = Field(default="anthropic/claude-sonnet-4-5-20250929")
+    eval_judge_model: str = Field(default="anthropic/claude-sonnet-4-5-20250929")
+    eval_judge_pinned: bool = Field(default=True)
+
+    max_tokens: int = Field(default=4096, ge=1)
+    temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+    request_timeout_seconds: float = Field(default=60.0, gt=0.0)
+    retry_max_attempts: int = Field(default=3, ge=1)
+
+    cache_enabled: bool = Field(default=True)
+    cache_dir: Path = Field(default=Path("cache"))
+
+    trace_enabled: bool = Field(default=False)
+    trace_backend: str = Field(default="none")
+
+    cost_budget_usd: float = Field(default=5.0, ge=0.0)
+    latency_budget_seconds: float = Field(default=30.0, gt=0.0)
+
     # Set a fixed random seed for reproducibility
     random_seed: int = Field(default=42)
 
@@ -45,7 +69,14 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
 
     # --- Secrets ---
+    openai_api_key: SecretStr = Field(default=SecretStr(""))
     anthropic_api_key: SecretStr = Field(default=SecretStr(""))
+    google_api_key: SecretStr = Field(default=SecretStr(""))
+    cohere_api_key: SecretStr = Field(default=SecretStr(""))
+    langfuse_public_key: SecretStr = Field(default=SecretStr(""))
+    langfuse_secret_key: SecretStr = Field(default=SecretStr(""))
+    logfire_token: SecretStr = Field(default=SecretStr(""))
+    phoenix_collector_endpoint: str = Field(default="")
 
     # --- LLM temperature ---
     # Phase 1 (sonic analysis): moderate for creative flexibility

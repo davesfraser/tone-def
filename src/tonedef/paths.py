@@ -15,6 +15,9 @@ def project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+PACKAGE_DIR = Path(__file__).resolve().parent
+PROMPT_TEMPLATES_DIR = PACKAGE_DIR / "prompt_templates"
+
 # Path constants for every folder the template creates
 # Import these directly rather than rebuilding paths from strings throughout
 # your code — it keeps things consistent and easy to refactor
@@ -28,6 +31,15 @@ DATA_RAW = DATA_DIR / "raw"  # original inputs — treat as read-only
 DATA_INTERIM = DATA_DIR / "interim"  # partially processed
 DATA_PROCESSED = DATA_DIR / "processed"  # clean, analysis-ready outputs
 DATA_EXTERNAL = DATA_DIR / "external"  # third-party / downloaded data
+
+EVALS_DIR = project_root() / "evals"
+EVALS_DATASETS_DIR = EVALS_DIR / "datasets"
+EVALS_GOLDEN_DIR = EVALS_DIR / "golden"
+EVALS_RESULTS_DIR = EVALS_DIR / "results"
+
+INDEXES_DIR = project_root() / "indexes"
+TRACES_DIR = project_root() / "traces"
+CACHE_DIR = project_root() / "cache"
 
 # Canonical path for GR7 factory presets, configurable via GR7_PRESETS_DIR.
 GR7_PRESETS_DIR = (
