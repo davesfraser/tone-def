@@ -9,8 +9,8 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
 
-      # DS projects often accidentally stage CSVs, Parquet files, or model
-      # binaries. This stops them before they bloat the repo history forever
+      # ToneDef keeps most generated data and binary artifacts out of git.
+      # This catches large accidental additions before they bloat history.
       - id: check-added-large-files
         args: ["--maxkb=2000"]
 

@@ -32,16 +32,6 @@ class Settings(BaseSettings):
     # Set to "production" in any shared or scheduled run environment
     environment: str = Field(default="development")
 
-    # --- Analysis parameters ---
-    # Move project-specific thresholds and parameters here as they emerge
-    # Example fields are shown below — remove or replace them
-
-    # Standard significance threshold for hypothesis tests in this project
-    alpha: float = Field(default=0.05)
-
-    # Minimum observations required before running statistical tests
-    min_sample_size: int = Field(default=30)
-
     # Set a fixed random seed for reproducibility
     random_seed: int = Field(default=42)
 
