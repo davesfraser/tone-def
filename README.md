@@ -231,7 +231,8 @@ src/tonedef/
     exemplar_store.py       build and query the preset exemplar dataset
     retriever.py            exemplar scoring (JSON), manual chunk search (ChromaDB), category-stratified retrieval
     prompts.py              SYSTEM_PROMPT, EXEMPLAR_REFINEMENT_PROMPT
-    models.py               Pydantic models — ComponentOutput
+    schemas/                strict Pydantic schemas — ComponentOutput and structured LLM contracts
+    models.py               compatibility imports for older ComponentOutput callers
     preset_builder.py       build_preset() and auto_preset_name() — final preset assembly
     pipeline.py             end-to-end orchestration — query → Phase 1 → Phase 2 → XML → .ngrr
     signal_chain_parser.py  parse Phase 1 LLM output into structured ParsedSignalChain
@@ -255,6 +256,7 @@ scripts/
     diagnose_pipeline.py          detailed pipeline diagnostic with intermediate outputs
 
 tests/                    pytest test suite
+evals/                    frozen eval datasets and golden expectations
 notebooks/marimo/         8 exploration and evaluation notebooks
 data/
     external/presets/     1425 factory .ngrr presets (source data, read-only)
@@ -270,7 +272,7 @@ data/
 | Layer | Technology |
 |---|---|
 | Interface | Streamlit |
-| LLM | Anthropic Claude (claude-sonnet-4-6) |
+| LLM | LiteLLM/Instructor wrapper, currently configured for Anthropic Claude |
 | Vector store | ChromaDB |
 | Notebooks | Marimo |
 | Package management | uv |
@@ -342,6 +344,16 @@ uv run python scripts/build_parameter_annotations.py
 uv run python scripts/check_pipeline.py   # all green = ready
 uv run streamlit run app.py
 ```
+
+### Evaluation fixtures
+
+Frozen deterministic eval inputs live in `evals/datasets/`, with matching expected labels and
+rubrics in `evals/golden/`. These fixtures are regression evidence for prompt, retrieval, and preset
+validity work. Prompt or retrieval changes should update the relevant fixtures or explicitly state
+that no eval applies.
+
+Live LLM evals remain manual-only through `.github/workflows/evals.yaml`; normal tests and CI must
+not require live provider calls.
 
 ---
 
