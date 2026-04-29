@@ -1,0 +1,2 @@
+{"id":"phase1_system_context_required","template":"system_prompt","context":{"TAVILY_RESULTS":"No context retrieved."},"assertions":["renders_without_placeholders","contains_retrieval_context"]}
+{"id":"phase2_refinement_context_required","template":"exemplar_refinement_prompt","context_keys":["SIGNAL_CHAIN","EXEMPLAR_PRESETS","MANUAL_REFERENCE","COMPONENT_SCHEMA","CABINET_LOOKUP","CRP_REFERENCE","TONAL_DESCRIPTORS"],"assertions":["renders_without_placeholders","requires_all_context_keys"]}

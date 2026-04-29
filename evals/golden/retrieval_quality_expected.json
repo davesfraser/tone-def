@@ -1,0 +1,12 @@
+{
+  "classic_rock_crunch": {
+    "min_relevant_exemplars": 1,
+    "expected_tags": ["Distorted", "Rock"],
+    "expected_components": ["Skreamer", "Lead 800"]
+  },
+  "warm_singing_sustain": {
+    "min_relevant_exemplars": 1,
+    "expected_tags": ["Warm", "Sustained"],
+    "expected_components": ["Chorus", "Reverb"]
+  }
+}

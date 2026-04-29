@@ -1,0 +1,2 @@
+{"id":"classic_rock_crunch","query":"Classic rock crunch with a Tube Screamer into a British high-gain amp","expected_tags":["Distorted","Rock"],"expected_components":["Skreamer","Lead 800"],"min_relevant_exemplars":1}
+{"id":"warm_singing_sustain","query":"Warm singing sustain with gentle chorus shimmer","expected_tags":["Warm","Sustained"],"expected_components":["Chorus","Reverb"],"min_relevant_exemplars":1}

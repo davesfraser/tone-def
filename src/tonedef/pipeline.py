@@ -10,10 +10,8 @@ from __future__ import annotations
 
 import logging
 
-import anthropic
-from anthropic.types import TextBlock
-
-from tonedef.prompts import SYSTEM_PROMPT
+from tonedef import client as llm_client
+from tonedef.prompt_templates import render_prompt
 from tonedef.settings import settings
 
 _log = logging.getLogger(__name__)
@@ -38,37 +36,27 @@ def compose_query(text: str, modifiers: list[str]) -> str:
 
 def generate_signal_chain(
     query: str,
-    client: anthropic.Anthropic,
-    model: str = "claude-sonnet-4-6",
+    model: str | None = None,
 ) -> str:
     """Run Phase 1: convert a natural language tone query to a signal chain.
 
     Args:
         query: The user's tone description.
-        client: An initialised Anthropic client.
-        model: Anthropic model identifier.
+        model: Provider/model identifier. Defaults to ``settings.default_model``.
 
     Returns:
         The raw Phase 1 signal chain text.
     """
-    system = SYSTEM_PROMPT.replace("{{TAVILY_RESULTS}}", "No context retrieved.")
+    system = render_prompt("system_prompt", TAVILY_RESULTS="No context retrieved.")
+    resolved_model = model or settings.default_model
 
-    _log.info("Phase 1 LLM call: model=%s, query_length=%d", model, len(query))
-    message = client.messages.create(
-        model=model,
+    _log.info("Phase 1 LLM call: model=%s, query_length=%d", resolved_model, len(query))
+    return llm_client.complete(
+        [
+            {"role": "system", "content": system},
+            {"role": "user", "content": query},
+        ],
+        model=resolved_model,
         max_tokens=2000,
         temperature=settings.phase1_temperature,
-        system=system,
-        messages=[{"role": "user", "content": query}],
     )
-    _log.info(
-        "Phase 1 complete: input_tokens=%s, output_tokens=%s",
-        getattr(message.usage, "input_tokens", "?"),
-        getattr(message.usage, "output_tokens", "?"),
-    )
-
-    block = message.content[0]
-    if not isinstance(block, TextBlock) and not hasattr(block, "text"):
-        msg = f"Expected TextBlock, got {type(block).__name__}"
-        raise TypeError(msg)
-    return block.text  # type: ignore[union-attr]

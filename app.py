@@ -6,7 +6,6 @@ from __future__ import annotations
 import contextlib
 import html as html_mod
 
-import anthropic
 import streamlit as st
 from ui import (
     EXAMPLE_QUERIES,
@@ -25,10 +24,9 @@ from tonedef.component_mapper import (
     map_components,
 )
 from tonedef.log import configure_logging
-from tonedef.models import ComponentOutput
 from tonedef.pipeline import compose_query, generate_signal_chain
 from tonedef.preset_builder import auto_preset_name, build_preset
-from tonedef.settings import settings
+from tonedef.schemas import ComponentOutput
 from tonedef.signal_chain_parser import ParsedSignalChain, parse_signal_chain
 from tonedef.tonal_vocab import get_all_selected_terms, get_ui_groups, load_descriptor_meta
 from tonedef.validation import (
@@ -67,16 +65,6 @@ _DEFAULTS: dict[str, object] = {
 for _key, _val in _DEFAULTS.items():
     if _key not in st.session_state:
         st.session_state[_key] = _val
-
-# ---------------------------------------------------------------------------
-# Cached resources
-# ---------------------------------------------------------------------------
-
-
-@st.cache_resource
-def get_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -236,19 +224,17 @@ if _has_results:
 
 elif st.session_state.processing:
     with st.status("Building your tone...", expanded=True) as status:
-        client = get_client()
-
         st.write("🔍 Analysing tone description...")
         modifiers = get_all_selected_terms(st.session_state.selected_modifiers)
         composed = compose_query(st.session_state.query, modifiers)
-        raw = generate_signal_chain(composed, client)
+        raw = generate_signal_chain(composed)
         st.session_state.signal_chain_raw = raw
         parsed_result = parse_signal_chain(raw)
         st.session_state.signal_chain_parsed = parsed_result
         st.session_state.phase1_validation = validate_phase1(parsed_result)
 
         st.write("🔧 Mapping to Guitar Rig 7 components...")
-        components, exemplars = map_components(raw, parsed_result, client)
+        components, exemplars = map_components(raw, parsed_result)
         st.session_state.components = components
         st.session_state.exemplars = exemplars
 

@@ -1,6 +1,7 @@
 # applied-skills: marimo, ds-evaluation
 import marimo
 
+__generated_with = "0.23.0"
 app = marimo.App(width="medium")
 
 # Cell plan:

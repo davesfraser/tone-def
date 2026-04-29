@@ -1,0 +1,10 @@
+{
+  "lead800_basic_chain": {
+    "required_components": ["Matched Cabinet Pro"],
+    "checks": ["known_component_ids", "known_parameter_ids", "cabinet_after_amp"]
+  },
+  "control_room_chain": {
+    "required_components": ["Control Room Pro"],
+    "checks": ["known_component_ids", "crp_integer_enums", "no_duplicate_cabinet"]
+  }
+}

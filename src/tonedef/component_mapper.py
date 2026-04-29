@@ -8,8 +8,8 @@ Exemplar-first architecture:
      store (structured scoring)
   2. Retrieve manual descriptions for exemplar components + missing categories
   3. Load amp-to-cabinet lookup for cabinet reference
-  4. Assemble EXEMPLAR_REFINEMENT_PROMPT with all context
-  5. Call the Anthropic API (Phase 2 LLM call)
+  4. Render the exemplar refinement prompt with all context
+  5. Call the shared LiteLLM client (Phase 2 LLM call)
   6. Parse and validate the JSON response
   7. Fill defaults for any omitted parameters from the schema
   8. Enforce correct cabinet inserted after amp via amp-to-cabinet lookup
@@ -22,21 +22,20 @@ import json
 import logging
 import re
 
-import anthropic
-from anthropic.types import TextBlock
 from pydantic import ValidationError
 
+from tonedef import client as llm_client
 from tonedef.crp_lookup import format_crp_reference
 from tonedef.exemplar_store import format_exemplar_context
-from tonedef.models import ComponentOutput
 from tonedef.paths import DATA_PROCESSED
-from tonedef.prompts import EXEMPLAR_REFINEMENT_PROMPT
+from tonedef.prompt_templates import render_prompt
 from tonedef.retriever import (
     get_manual_chunks_for_components,
     search_exemplars,
     search_manual_by_tonal_target,
     search_manual_for_categories,
 )
+from tonedef.schemas import ComponentOutput
 from tonedef.settings import settings
 from tonedef.signal_chain_parser import ParsedSignalChain, format_tonal_target
 from tonedef.tonal_vocab import format_tonal_descriptors
@@ -547,8 +546,7 @@ def fill_defaults(components: list[dict], schema: dict) -> list[dict]:
 def map_components(
     signal_chain: str,
     parsed: ParsedSignalChain,
-    client: anthropic.Anthropic,
-    model: str = "claude-sonnet-4-6",
+    model: str | None = None,
 ) -> tuple[list[dict], list[dict]]:
     """
     Map a Phase 1 signal chain to an ordered list of GR7 component dicts.
@@ -558,7 +556,7 @@ def map_components(
       2. Gather manual descriptions for exemplar components
       3. Retrieve manual descriptions for effect categories the exemplars lack
       4. Build prompt with exemplars, manual reference, schema, cabinet lookup
-      5. Call the LLM with EXEMPLAR_REFINEMENT_PROMPT (compact tonal target)
+      5. Call the LLM with the exemplar refinement prompt (compact tonal target)
       6. Parse JSON response, fill defaults, enforce cabinet
 
     Args:
@@ -567,8 +565,7 @@ def map_components(
         parsed: The structured Phase 1 output.  Tags and component names are
             extracted directly for exemplar scoring, and a compact tonal
             target is rendered for the Phase 2 prompt.
-        client: An initialised anthropic.Anthropic client.
-        model: Anthropic model identifier.
+        model: Provider/model identifier. Defaults to ``settings.default_model``.
 
     Returns:
         Tuple of (components, exemplars):
@@ -639,35 +636,32 @@ def map_components(
     crp_context = build_crp_reference_context()
     tonal_descriptor_context = format_tonal_descriptors()
 
-    prompt = (
-        EXEMPLAR_REFINEMENT_PROMPT.replace("{{SIGNAL_CHAIN}}", tonal_target)
-        .replace("{{EXEMPLAR_PRESETS}}", exemplar_context)
-        .replace("{{MANUAL_REFERENCE}}", manual_context)
-        .replace("{{COMPONENT_SCHEMA}}", schema_context)
-        .replace("{{CABINET_LOOKUP}}", cabinet_context)
-        .replace("{{CRP_REFERENCE}}", crp_context)
-        .replace("{{TONAL_DESCRIPTORS}}", tonal_descriptor_context)
+    prompt = render_prompt(
+        "exemplar_refinement_prompt",
+        SIGNAL_CHAIN=tonal_target,
+        EXEMPLAR_PRESETS=exemplar_context,
+        MANUAL_REFERENCE=manual_context,
+        COMPONENT_SCHEMA=schema_context,
+        CABINET_LOOKUP=cabinet_context,
+        CRP_REFERENCE=crp_context,
+        TONAL_DESCRIPTORS=tonal_descriptor_context,
     )
 
     # 8. Phase 2 LLM call
-    message = client.messages.create(
-        model=model,
+    resolved_model = model or settings.default_model
+    raw = llm_client.complete(
+        [{"role": "user", "content": prompt}],
+        model=resolved_model,
         max_tokens=4096,
         temperature=settings.phase2_temperature,
-        messages=[{"role": "user", "content": prompt}],
     )
 
     _log.info(
-        "Phase 2 LLM call complete: model=%s, input_tokens=%s, output_tokens=%s",
-        model,
-        getattr(message.usage, "input_tokens", "?"),
-        getattr(message.usage, "output_tokens", "?"),
+        "Phase 2 LLM call complete: model=%s, response_length=%d",
+        resolved_model,
+        len(raw),
     )
-    block = message.content[0]
-    if not isinstance(block, TextBlock) and not hasattr(block, "text"):
-        msg = f"Expected TextBlock, got {type(block).__name__}"
-        raise TypeError(msg)
-    raw = block.text.strip()  # type: ignore[union-attr]
+    raw = raw.strip()
 
     # Strip markdown fences if the model added them despite instructions
     if raw.startswith("```"):

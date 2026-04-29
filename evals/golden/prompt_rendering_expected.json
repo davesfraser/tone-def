@@ -1,0 +1,18 @@
+{
+  "phase1_system_context_required": {
+    "must_contain": ["No context retrieved."],
+    "must_not_contain": ["{{TAVILY_RESULTS}}"]
+  },
+  "phase2_refinement_context_required": {
+    "required_context_keys": [
+      "SIGNAL_CHAIN",
+      "EXEMPLAR_PRESETS",
+      "MANUAL_REFERENCE",
+      "COMPONENT_SCHEMA",
+      "CABINET_LOOKUP",
+      "CRP_REFERENCE",
+      "TONAL_DESCRIPTORS"
+    ],
+    "must_not_contain": ["{{"]
+  }
+}

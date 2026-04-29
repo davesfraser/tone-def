@@ -7,8 +7,7 @@ API key or ChromaDB index.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -89,38 +88,6 @@ PHASE2_JSON = """[
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class _FakeUsage:
-    input_tokens: int = 100
-    output_tokens: int = 200
-
-
-@dataclass
-class _FakeContentBlock:
-    text: str
-
-
-@dataclass
-class _FakeMessage:
-    content: list[_FakeContentBlock]
-    usage: _FakeUsage
-
-
-def _make_fake_client(responses: list[str]) -> MagicMock:
-    """Build a mock anthropic.Anthropic whose messages.create returns *responses* in order."""
-    client = MagicMock()
-    side_effects = [
-        _FakeMessage(content=[_FakeContentBlock(text=r)], usage=_FakeUsage()) for r in responses
-    ]
-    client.messages.create.side_effect = side_effects
-    return client
-
-
-# ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
 
@@ -130,18 +97,23 @@ def _make_fake_client(responses: list[str]) -> MagicMock:
     not (DATA_PROCESSED / "component_schema.json").exists(),
     reason="Processed data files not present in data/processed/",
 )
-def test_full_pipeline_produces_ngrr_bytes() -> None:
+def test_full_pipeline_produces_ngrr_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
     """End-to-end pipeline: query → .ngrr bytes, all LLM calls mocked."""
     # Arrange
     query = "Classic rock crunch, Marshall JCM800 with a Tube Screamer in front"
     modifiers = ["grittier", "tighter"]
-    client = _make_fake_client([PHASE1_RAW, PHASE2_JSON])
+    responses = iter([PHASE1_RAW, PHASE2_JSON])
+
+    def fake_complete(*args: object, **kwargs: object) -> str:
+        return next(responses)
+
+    monkeypatch.setattr("tonedef.client.complete", fake_complete)
 
     # Phase 1
     composed = compose_query(query, modifiers)
     assert "Tonal modifiers:" in composed
 
-    raw = generate_signal_chain(composed, client)
+    raw = generate_signal_chain(composed)
     assert raw == PHASE1_RAW
 
     parsed = parse_signal_chain(raw)
@@ -170,7 +142,7 @@ def test_full_pipeline_produces_ngrr_bytes() -> None:
     with patch("tonedef.component_mapper.search_exemplars", return_value=fake_exemplars):
         from tonedef.component_mapper import map_components
 
-        components, _exemplars = map_components(raw, parsed, client)
+        components, _exemplars = map_components(raw, parsed)
 
     assert isinstance(components, list)
     assert len(components) >= 1
@@ -187,11 +159,11 @@ def test_full_pipeline_produces_ngrr_bytes() -> None:
 
 
 @pytest.mark.integration
-def test_pipeline_phase1_validation_returns_result() -> None:
+def test_pipeline_phase1_validation_returns_result(monkeypatch: pytest.MonkeyPatch) -> None:
     """Phase 1 validation produces a ValidationResult from parsed output."""
-    client = _make_fake_client([PHASE1_RAW])
+    monkeypatch.setattr("tonedef.client.complete", lambda *args, **kwargs: PHASE1_RAW)
 
-    raw = generate_signal_chain("test query", client)
+    raw = generate_signal_chain("test query")
     parsed = parse_signal_chain(raw)
     result = validate_phase1(parsed)
 

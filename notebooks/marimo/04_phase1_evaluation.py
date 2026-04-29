@@ -15,19 +15,14 @@ def _():
 
 @app.cell
 def _():
-    import anthropic
-
     from tonedef.pipeline import generate_signal_chain
-    from tonedef.settings import settings
     from tonedef.signal_chain_parser import format_tonal_target, parse_signal_chain
     from tonedef.validation import validate_phase1
 
     return (
-        anthropic,
         format_tonal_target,
         generate_signal_chain,
         parse_signal_chain,
-        settings,
         validate_phase1,
     )
 
@@ -58,18 +53,15 @@ def _(mo):
 
 @app.cell
 def _(
-    anthropic,
     generate_signal_chain,
     mo,
     parse_signal_chain,
     query,
-    settings,
     validate_phase1,
 ):
     mo.stop(not query.value, mo.md("*Enter a query above to begin.*"))
 
-    _client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
-    raw_output = generate_signal_chain(query.value, _client)
+    raw_output = generate_signal_chain(query.value)
     parsed_chain = parse_signal_chain(raw_output)
     phase1_result = validate_phase1(parsed_chain)
     return parsed_chain, phase1_result, raw_output
