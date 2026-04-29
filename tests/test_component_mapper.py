@@ -24,6 +24,7 @@ from tonedef.component_mapper import (
     fill_defaults,
     resolve_component_names,
 )
+from tonedef.signal_chain_parser import ParsedSignalChain, Section, Unit
 
 # ---------------------------------------------------------------------------
 # build_manual_reference_context
@@ -964,3 +965,104 @@ def test_validate_crp_params_skips_non_crp() -> None:
     """Non-CRP components are ignored by the validator."""
     comps = [{"component_name": "Tube Screamer", "parameters": {"Drv": 0.5}}]
     _validate_crp_params(comps)  # should not raise
+
+
+def test_map_components_uses_rendered_prompt_and_shared_client(monkeypatch) -> None:
+    from tonedef import component_mapper
+    from tonedef.settings import settings
+
+    complete_calls: list[dict[str, object]] = []
+    render_contexts: list[dict[str, object]] = []
+
+    parsed = ParsedSignalChain(
+        chain_type="AMP_ONLY",
+        chain_type_reason="test target",
+        sections=[
+            Section(
+                title="Signal Chain",
+                units=[Unit(name="Lead 800", unit_type="amplifier", provenance="DOCUMENTED")],
+            )
+        ],
+        tags_characters=["Distorted"],
+        tags_genres=["Rock"],
+    )
+
+    schema = {
+        "Lead 800": {
+            "component_id": 56000,
+            "parameters": [
+                {
+                    "param_id": "vb",
+                    "param_name": "Volume",
+                    "default_value": 0.5,
+                    "stats": {"min": 0.0, "max": 1.0},
+                }
+            ],
+        },
+        "Matched Cabinet Pro": {
+            "component_id": 156000,
+            "parameters": [
+                {
+                    "param_id": "Cab",
+                    "param_name": "Cabinet",
+                    "default_value": 10,
+                    "stats": {"min": 0, "max": 30},
+                }
+            ],
+        },
+    }
+
+    def fake_render_prompt(name: str, **context: object) -> str:
+        assert name == "exemplar_refinement_prompt"
+        render_contexts.append(context)
+        return "rendered phase 2 prompt"
+
+    def fake_complete(messages: list[dict[str, str]], **kwargs: object) -> str:
+        complete_calls.append({"messages": messages, **kwargs})
+        return """[
+          {
+            "component_name": "Lead 800",
+            "component_id": 56000,
+            "base_exemplar": "test preset",
+            "modification": "adjusted",
+            "confidence": "documented",
+            "rationale": "classic crunch",
+            "parameters": {"vb": 0.75}
+          }
+        ]"""
+
+    monkeypatch.setattr(component_mapper, "load_schema", lambda: schema)
+    monkeypatch.setattr(
+        component_mapper, "load_amp_cabinet_lookup", lambda: {"Lead 800": {"cab_value": 10}}
+    )
+    monkeypatch.setattr(component_mapper, "load_annotations", dict)
+    monkeypatch.setattr(component_mapper, "search_exemplars", lambda *args, **kwargs: [])
+    monkeypatch.setattr(component_mapper, "format_exemplar_context", lambda exemplars: "(none)")
+    monkeypatch.setattr(component_mapper, "get_manual_chunks_for_components", lambda names: [])
+    monkeypatch.setattr(
+        component_mapper, "search_manual_for_categories", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        component_mapper, "search_manual_by_tonal_target", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(component_mapper, "build_crp_reference_context", lambda: "crp reference")
+    monkeypatch.setattr(component_mapper, "format_tonal_descriptors", lambda: "tonal descriptors")
+    monkeypatch.setattr(component_mapper, "render_prompt", fake_render_prompt)
+    monkeypatch.setattr(component_mapper.llm_client, "complete", fake_complete)
+
+    components, exemplars = component_mapper.map_components(
+        "raw phase 1", parsed, model="test/model"
+    )
+
+    assert exemplars == []
+    assert components[0]["component_name"] == "Lead 800"
+    assert str(render_contexts[0]["SIGNAL_CHAIN"]).startswith("Approach: test target")
+    assert render_contexts[0]["COMPONENT_SCHEMA"]
+    assert complete_calls == [
+        {
+            "messages": [{"role": "user", "content": "rendered phase 2 prompt"}],
+            "model": "test/model",
+            "max_tokens": 4096,
+            "temperature": settings.phase2_temperature,
+        }
+    ]

@@ -29,6 +29,15 @@ def test_render_prompt_requires_context() -> None:
         render_prompt("system_prompt")
 
 
+def test_render_exemplar_prompt_requires_all_context() -> None:
+    with pytest.raises(Exception):  # noqa: B017 - Jinja raises a templating exception.
+        render_prompt(
+            "exemplar_refinement_prompt",
+            SIGNAL_CHAIN="target",
+            EXEMPLAR_PRESETS="exemplars",
+        )
+
+
 def test_prompt_meta_reads_header() -> None:
     meta = prompt_meta("system_prompt")
 

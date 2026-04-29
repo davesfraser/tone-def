@@ -15,23 +15,18 @@ def _():
 
 @app.cell
 def _():
-    import anthropic
-
     from tonedef.component_mapper import load_amp_cabinet_lookup, load_schema, map_components
-    from tonedef.models import ComponentOutput
-    from tonedef.settings import settings
+    from tonedef.schemas import ComponentOutput
     from tonedef.signal_chain_parser import format_tonal_target, parse_signal_chain
     from tonedef.validation import validate_phase2, validate_signal_chain_order
 
     return (
         ComponentOutput,
-        anthropic,
         format_tonal_target,
         load_amp_cabinet_lookup,
         load_schema,
         map_components,
         parse_signal_chain,
-        settings,
         validate_phase2,
         validate_signal_chain_order,
     )
@@ -63,14 +58,12 @@ def _(mo):
 @app.cell
 def _(
     ComponentOutput,
-    anthropic,
     load_amp_cabinet_lookup,
     load_schema,
     map_components,
     mo,
     parse_signal_chain,
     phase1_input,
-    settings,
     validate_phase2,
     validate_signal_chain_order,
 ):
@@ -79,9 +72,8 @@ def _(
         mo.md("*Paste a Phase 1 output above to begin.*"),
     )
 
-    _client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
     _parsed = parse_signal_chain(phase1_input.value)
-    components, _exemplars = map_components(phase1_input.value, _parsed, _client)
+    components, _exemplars = map_components(phase1_input.value, _parsed)
 
     schema = load_schema()
     _amp_cab = load_amp_cabinet_lookup()

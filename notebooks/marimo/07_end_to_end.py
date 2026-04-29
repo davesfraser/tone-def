@@ -15,15 +15,12 @@ def _():
 
 @app.cell
 def _():
-    import anthropic
-
     from tonedef.component_mapper import load_amp_cabinet_lookup, load_schema, map_components
-    from tonedef.models import ComponentOutput
     from tonedef.ngrr_builder import transplant_preset
     from tonedef.paths import DATA_EXTERNAL
     from tonedef.pipeline import generate_signal_chain
     from tonedef.retriever import search_exemplars
-    from tonedef.settings import settings
+    from tonedef.schemas import ComponentOutput
     from tonedef.signal_chain_parser import format_tonal_target, parse_signal_chain
     from tonedef.validation import (
         validate_phase1,
@@ -37,7 +34,6 @@ def _():
     return (
         ComponentOutput,
         DATA_EXTERNAL,
-        anthropic,
         build_signal_chain_xml,
         generate_signal_chain,
         load_amp_cabinet_lookup,
@@ -45,7 +41,6 @@ def _():
         map_components,
         parse_signal_chain,
         search_exemplars,
-        settings,
         transplant_preset,
         validate_phase1,
         validate_phase2,
@@ -81,7 +76,6 @@ def _(mo):
 @app.cell
 def _(
     ComponentOutput,
-    anthropic,
     e2e_query,
     generate_signal_chain,
     load_amp_cabinet_lookup,
@@ -90,7 +84,6 @@ def _(
     mo,
     parse_signal_chain,
     search_exemplars,
-    settings,
     validate_phase1,
     validate_phase2,
     validate_pre_build,
@@ -99,10 +92,8 @@ def _(
 ):
     mo.stop(not e2e_query.value, mo.md("*Enter a query above to begin.*"))
 
-    _client = anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
-
     # Phase 1
-    e2e_raw = generate_signal_chain(e2e_query.value, _client)
+    e2e_raw = generate_signal_chain(e2e_query.value)
     e2e_parsed = parse_signal_chain(e2e_raw)
     e2e_p1v = validate_phase1(e2e_parsed)
 
@@ -113,7 +104,7 @@ def _(
     e2e_rv = validate_retrieval(e2e_exemplars)
 
     # Phase 2
-    e2e_components, _e2e_exemplars = map_components(e2e_raw, e2e_parsed, _client)
+    e2e_components, _e2e_exemplars = map_components(e2e_raw, e2e_parsed)
 
     _schema = load_schema()
     _amp_cab = load_amp_cabinet_lookup()
