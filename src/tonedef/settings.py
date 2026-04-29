@@ -34,9 +34,9 @@ class Settings(BaseSettings):
     # Set to "production" in any shared or scheduled run environment
     environment: str = Field(default="development")
 
-    # --- Dormant AI-template client settings ---
-    # These support tonedef.client for future migrations. Existing ToneDef
-    # pipeline calls still use the direct Anthropic SDK path.
+    # --- AI-template client settings ---
+    # These configure tonedef.client, which routes production LLM calls through
+    # LiteLLM/Instructor while keeping the current Anthropic backend selectable.
     provider_primary: str = Field(default="anthropic")
     default_model: str = Field(default="anthropic/claude-sonnet-4-5-20250929")
     eval_judge_model: str = Field(default="anthropic/claude-sonnet-4-5-20250929")

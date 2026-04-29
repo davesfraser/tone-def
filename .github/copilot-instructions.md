@@ -57,7 +57,7 @@ cassettes, or saving diagnostic artifacts.
 - ruff for linting and formatting
 - mypy for static type checking
 - pytest for testing
-- Anthropic SDK for current LLM calls
+- LiteLLM/Instructor client wrapper for LLM calls, currently backed by Anthropic
 - Pydantic for structured outputs and settings
 - ChromaDB for local retrieval indexes
 - marimo for notebooks
@@ -91,8 +91,8 @@ RULE: Do not duplicate logic across notebooks.
 RULE: Functions must be deterministic and avoid hidden global state.
 RULE: New functionality in `src/` must include pytest tests.
 RULE: Keep IO separate from pure logic where practical.
-RULE: Use current direct Anthropic client paths unless a separate migration
-explicitly changes the LLM client architecture.
+RULE: Route production LLM calls through `src/tonedef/client.py`; do not call
+provider SDKs directly from application, notebook, or reusable pipeline code.
 
 ---
 
