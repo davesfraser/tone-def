@@ -23,7 +23,6 @@ RULE: Use `complete` or `acomplete` for plain text responses.
 RULE: Use `complete_structured` or `acomplete_structured` with Pydantic schemas for reusable outputs.
 RULE: Pin model strings in settings or environment variables, not inline code.
 RULE: Catch provider errors at application boundaries and return typed failure states.
-EXCEPTION: Existing ToneDef Anthropic call sites may stay on the direct SDK until a deliberate client migration changes them.
 EXCEPTION: Use a direct provider SDK when a provider feature is unavailable through LiteLLM, and isolate it behind a small adapter.
 
 # operations

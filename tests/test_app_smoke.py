@@ -91,6 +91,7 @@ def test_app_defaults_defined_in_source() -> None:
         "phase1_validation",
         "components",
         "exemplars",
+        "llm_usage_summary",
         "preset_bytes",
         "preset_name",
         "processing",

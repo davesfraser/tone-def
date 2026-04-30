@@ -21,7 +21,7 @@ user-invocable: true
 - All paths come from `tonedef.paths` — never construct paths with strings
 - Session state is the only way to persist values across reruns — initialise all keys at the top of the file
 - Never mutate session state inside a widget callback and also in the main script body — pick one place
-- `st.cache_data` for data loading, `st.cache_resource` for connections and clients — never cache both with the same decorator
+- `st.cache_data` for data loading, `st.cache_resource` for non-LLM shared resources — never cache both with the same decorator
 
 ---
 
@@ -68,15 +68,15 @@ RULE: Do not store large binary objects in session state if they can be cached w
 # caching
 
 RULE: Use `@st.cache_data` for functions that load or transform data — results are serialised and stored per unique input.
-RULE: Use `@st.cache_resource` for functions that create shared objects — API clients, database connections, loaded models. These are not serialised; the object is shared across all sessions.
+RULE: Use `@st.cache_resource` for functions that create shared objects — database connections or loaded models. LLM calls go through `src/tonedef/client.py`.
 RULE: Never use `@st.cache_data` for an API client or connection object — use `@st.cache_resource`.
 RULE: Never use `@st.cache_resource` for a function that returns a mutable data structure that callers modify — use `@st.cache_data` instead.
 
 ```python
-# correct — client is a shared resource, not data
-@st.cache_resource
-def get_anthropic_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=settings.anthropic_api_key.get_secret_value())
+# correct — app wiring calls reusable domain functions
+from tonedef.pipeline import generate_signal_chain
+
+raw = generate_signal_chain(query)
 ```
 
 ---
@@ -100,15 +100,16 @@ RULE: Functions in `src/` must not import `streamlit` — keeping `st` out of `s
 **ANTI-PATTERN — logic in the app file:**
 ```python
 # app.py — wrong
-response = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"]).messages.create(...)
+response = provider_sdk.Client(api_key=os.environ["PROVIDER_API_KEY"]).messages.create(...)
 ```
 
 **Correct — logic in src/, wiring in app.py:**
 ```python
 # src/tonedef/client.py
 def query(prompt: str) -> str:
-    client = get_anthropic_client()
-    ...
+    from tonedef.client import complete
+
+    return complete([{"role": "user", "content": prompt}])
 
 # app.py
 from tonedef.client import query

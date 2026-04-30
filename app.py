@@ -56,6 +56,7 @@ _DEFAULTS: dict[str, object] = {
     "phase1_validation": None,
     "components": None,
     "exemplars": None,
+    "llm_usage_summary": None,
     "preset_bytes": None,
     "preset_name": "ToneDef Preset",
     "processing": False,
@@ -78,6 +79,7 @@ def _clear_results() -> None:
     st.session_state.phase1_validation = None
     st.session_state.components = None
     st.session_state.exemplars = None
+    st.session_state.llm_usage_summary = None
     st.session_state.preset_bytes = None
     st.session_state.preset_name = "ToneDef Preset"
     st.session_state.pop("_last_built_name", None)
@@ -175,6 +177,40 @@ if _has_results:
     # Similar presets analysed
     render_similar_presets(st.session_state.exemplars)
 
+    usage_summary = st.session_state.llm_usage_summary
+    if usage_summary is not None:
+        has_unknown_cost = any(
+            r.estimated_cost_usd is None and not r.cache_hit for r in usage_summary.records
+        )
+        cost_label = "unknown" if has_unknown_cost else f"~${usage_summary.estimated_cost_usd:.4f}"
+        total_tokens = usage_summary.total_tokens
+        calls = usage_summary.provider_call_count
+        latency = usage_summary.total_latency_seconds
+        st.caption(
+            f"Estimated LLM cost: {cost_label} · Tokens: {total_tokens:,} · "
+            f"Provider calls: {calls} · LLM latency: {latency:.2f}s"
+        )
+
+        with st.expander("LLM usage details"):
+            rows = [
+                {
+                    "Operation": r.operation,
+                    "Model": r.model,
+                    "Prompt tokens": r.prompt_tokens,
+                    "Completion tokens": r.completion_tokens,
+                    "Total tokens": r.total_tokens,
+                    "Estimated cost": (
+                        f"${r.estimated_cost_usd:.6f}"
+                        if r.estimated_cost_usd is not None
+                        else "unknown"
+                    ),
+                    "Latency": f"{r.latency_seconds:.2f}s",
+                    "Cache hit": r.cache_hit,
+                }
+                for r in usage_summary.records
+            ]
+            st.table(rows)
+
     # Component cards
     st.markdown("##### Signal Chain Components")
     _card_schema = load_schema()
@@ -224,19 +260,24 @@ if _has_results:
 
 elif st.session_state.processing:
     with st.status("Building your tone...", expanded=True) as status:
-        st.write("🔍 Analysing tone description...")
-        modifiers = get_all_selected_terms(st.session_state.selected_modifiers)
-        composed = compose_query(st.session_state.query, modifiers)
-        raw = generate_signal_chain(composed)
-        st.session_state.signal_chain_raw = raw
-        parsed_result = parse_signal_chain(raw)
-        st.session_state.signal_chain_parsed = parsed_result
-        st.session_state.phase1_validation = validate_phase1(parsed_result)
+        from tonedef.llm_usage import collect_llm_usage
 
-        st.write("🔧 Mapping to Guitar Rig 7 components...")
-        components, exemplars = map_components(raw, parsed_result)
-        st.session_state.components = components
-        st.session_state.exemplars = exemplars
+        with collect_llm_usage() as llm_usage:
+            st.write("🔍 Analysing tone description...")
+            modifiers = get_all_selected_terms(st.session_state.selected_modifiers)
+            composed = compose_query(st.session_state.query, modifiers)
+            raw = generate_signal_chain(composed)
+            st.session_state.signal_chain_raw = raw
+            parsed_result = parse_signal_chain(raw)
+            st.session_state.signal_chain_parsed = parsed_result
+            st.session_state.phase1_validation = validate_phase1(parsed_result)
+
+            st.write("🔧 Mapping to Guitar Rig 7 components...")
+            components, exemplars = map_components(raw, parsed_result)
+            st.session_state.components = components
+            st.session_state.exemplars = exemplars
+
+        st.session_state.llm_usage_summary = llm_usage.summary()
 
         st.write("📦 Preparing preset...")
         name = auto_preset_name(st.session_state.query)
