@@ -12,7 +12,7 @@ name = "tonedef"
 
 # Don't also define __version__ in __init__.py — importlib.metadata reads
 # this value at runtime. One place to change it = zero drift
-version = "0.3.0"
+version = "0.4.0"
 
 description = "Web application and prompt interface for guitarists to find the ultimate tone"
 readme = "README.md"
