@@ -89,6 +89,7 @@ def test_app_defaults_defined_in_source() -> None:
         "signal_chain_raw",
         "signal_chain_parsed",
         "phase1_validation",
+        "build_validation",
         "components",
         "exemplars",
         "llm_usage_summary",
@@ -105,3 +106,12 @@ def test_app_defaults_defined_in_source() -> None:
 def test_style_css_exists() -> None:
     """The CSS file referenced by the UI package exists on disk."""
     assert (project_root() / "ui" / "style.css").is_file()
+
+
+def test_app_blocks_preset_build_on_validation_errors() -> None:
+    """The Streamlit flow gates preset export when pre-build validation fails."""
+    source = _APP_PY.read_text(encoding="utf-8")
+    assert "_validate_components_for_build" in source
+    assert "_has_blocking_validation_errors" in source
+    assert "Preset file blocked" in source
+    assert "st.stop()" in source

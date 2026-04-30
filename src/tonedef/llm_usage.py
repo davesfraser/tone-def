@@ -23,12 +23,24 @@ class LLMUsageRecord(BaseModel):
     error: str | None = None
 
 
+class LLMContextBlockMetric(BaseModel):
+    """Non-content size telemetry for one rendered prompt block."""
+
+    model_config = ConfigDict(strict=True)
+
+    operation: str = Field(description="Logical operation that rendered this block.")
+    block_name: str = Field(description="Prompt block name, not the block content.")
+    char_count: int = Field(ge=0)
+    approximate_tokens: int = Field(ge=0)
+
+
 class LLMUsageSummary(BaseModel):
     """Aggregate LLM usage for a request or workflow."""
 
     model_config = ConfigDict(strict=True)
 
     records: list[LLMUsageRecord] = Field(default_factory=list)
+    context_blocks: list[LLMContextBlockMetric] = Field(default_factory=list)
     total_prompt_tokens: int = 0
     total_completion_tokens: int = 0
     total_tokens: int = 0
@@ -43,12 +55,16 @@ class LLMUsageCollector:
 
     def __init__(self) -> None:
         self.records: list[LLMUsageRecord] = []
+        self.context_blocks: list[LLMContextBlockMetric] = []
 
     def add(self, record: LLMUsageRecord) -> None:
         self.records.append(record)
 
+    def add_context_block(self, metric: LLMContextBlockMetric) -> None:
+        self.context_blocks.append(metric)
+
     def summary(self) -> LLMUsageSummary:
-        return summarize_usage(self.records)
+        return summarize_usage(self.records, context_blocks=self.context_blocks)
 
 
 _current_collector: ContextVar[LLMUsageCollector | None] = ContextVar(
@@ -75,10 +91,22 @@ def record_llm_usage(record: LLMUsageRecord) -> None:
         collector.add(record)
 
 
-def summarize_usage(records: list[LLMUsageRecord]) -> LLMUsageSummary:
+def record_context_block(metric: LLMContextBlockMetric) -> None:
+    """Record prompt block size telemetry if a collector is active."""
+    collector = _current_collector.get()
+    if collector is not None:
+        collector.add_context_block(metric)
+
+
+def summarize_usage(
+    records: list[LLMUsageRecord],
+    *,
+    context_blocks: list[LLMContextBlockMetric] | None = None,
+) -> LLMUsageSummary:
     """Summarize records while treating missing token/cost fields as zero."""
     return LLMUsageSummary(
         records=list(records),
+        context_blocks=list(context_blocks or []),
         total_prompt_tokens=sum(r.prompt_tokens or 0 for r in records),
         total_completion_tokens=sum(r.completion_tokens or 0 for r in records),
         total_tokens=sum(r.total_tokens or 0 for r in records),

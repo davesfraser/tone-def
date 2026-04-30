@@ -27,6 +27,7 @@ from pydantic import ValidationError
 from tonedef import client as llm_client
 from tonedef.crp_lookup import format_crp_reference
 from tonedef.exemplar_store import format_exemplar_context
+from tonedef.llm_usage import LLMContextBlockMetric, record_context_block
 from tonedef.paths import DATA_PROCESSED
 from tonedef.prompt_templates import render_prompt
 from tonedef.retriever import (
@@ -48,6 +49,15 @@ _ANNOTATIONS_PATH = DATA_PROCESSED / "parameter_annotations.json"
 
 _MATCHED_CABINET_PRO_ID = 156000
 _MATCHED_CABINET_PRO_NAME = "Matched Cabinet Pro"
+_PHASE2_CONTEXT_OPERATION = "llm.phase2_context"
+_PHASE2_TOKEN_CHAR_DIVISOR = 4
+_MANUAL_COMPONENT_CHAR_LIMIT = 1600
+_MANUAL_SECTION_CHAR_BUDGETS = {
+    "exemplar": 12000,
+    "tonal": 8000,
+    "gap": 6000,
+}
+_GAP_SCHEMA_PER_CATEGORY = 1
 
 # Cabinet-type components that replace Matched Cabinet Pro in the chain.
 # When ANY of these are present, Matched Cabinet Pro enforcement is skipped.
@@ -72,6 +82,12 @@ _NAME_ALIASES: dict[str, str] = {
     "demondistortion": "Demon",
     "volume": "Volume Pedal",
     "flangerchorus": "Flanger",
+}
+
+# Schema names whose manual headings differ enough that exact retrieval misses
+# them.  The prompt still shows canonical schema names after retrieval.
+_SCHEMA_TO_MANUAL_NAMES: dict[str, str] = {
+    "Wahwah": "Wah Wah",
 }
 
 
@@ -102,6 +118,85 @@ def resolve_component_names(
             _log.info("Resolved component name %r → %r", raw_name, canonical)
             comp["component_name"] = canonical
     return components
+
+
+def _schema_id_lookup(schema: dict) -> dict[int, str | None]:
+    """Return component_id -> canonical name when the id is unique."""
+    by_id: dict[int, str | None] = {}
+    for name, entry in schema.items():
+        component_id = entry.get("component_id")
+        if not isinstance(component_id, int):
+            continue
+        if component_id in by_id:
+            by_id[component_id] = None
+        else:
+            by_id[component_id] = name
+    return by_id
+
+
+def _known_param_ids(schema: dict, component_name: str) -> set[str]:
+    entry = schema.get(component_name, {})
+    return {str(p["param_id"]) for p in entry.get("parameters", [])}
+
+
+def repair_component_identities(components: list[dict], schema: dict) -> list[dict]:
+    """Repair unambiguous name/id/parameter drift in LLM component output.
+
+    This is intentionally conservative: a component is renamed only when its
+    emitted id uniquely identifies a schema component and the supplied parameter
+    ids match that id's component better than the emitted component name.
+    """
+    id_lookup = _schema_id_lookup(schema)
+
+    for comp in components:
+        raw_id = comp.get("component_id")
+        if not isinstance(raw_id, int):
+            continue
+
+        target_name = id_lookup.get(raw_id)
+        current_name = str(comp.get("component_name", ""))
+        if not target_name or target_name == current_name:
+            continue
+
+        param_ids = {str(pid) for pid in comp.get("parameters", {})}
+        if not param_ids:
+            continue
+
+        target_score = len(param_ids & _known_param_ids(schema, target_name))
+        current_score = len(param_ids & _known_param_ids(schema, current_name))
+        if target_score > current_score and target_score > 0:
+            _log.warning(
+                "Repairing component identity %r/%s -> %r based on parameter ids",
+                current_name,
+                raw_id,
+                target_name,
+            )
+            comp["component_name"] = target_name
+
+    return components
+
+
+def _expand_manual_lookup_names(component_names: set[str]) -> set[str]:
+    """Include known manual headings alongside canonical schema names."""
+    expanded = set(component_names)
+    for name in component_names:
+        alias = _SCHEMA_TO_MANUAL_NAMES.get(name)
+        if alias:
+            expanded.add(alias)
+    return expanded
+
+
+def _canonicalize_manual_chunk_names(chunks: list[dict], lookup: dict[str, str]) -> list[dict]:
+    """Rewrite manual chunk names to canonical schema names when possible."""
+    canonicalized: list[dict] = []
+    for chunk in chunks:
+        row = dict(chunk)
+        raw_name = str(row.get("component_name", ""))
+        canonical = lookup.get(_normalize_name(raw_name))
+        if canonical:
+            row["component_name"] = canonical
+        canonicalized.append(row)
+    return canonicalized
 
 
 # ---------------------------------------------------------------------------
@@ -149,7 +244,21 @@ def load_annotations() -> dict[str, dict[str, dict]]:
 # ---------------------------------------------------------------------------
 
 
-def _format_manual_section(manual_results: list[dict]) -> str:
+def _truncate_text(text: str, limit: int) -> str:
+    """Truncate text at a word boundary with a clear marker."""
+    if len(text) <= limit:
+        return text
+    truncated = text[:limit].rsplit(" ", 1)[0].rstrip()
+    return f"{truncated}\n[truncated for prompt budget]"
+
+
+def _format_manual_section(
+    manual_results: list[dict],
+    *,
+    component_char_limit: int | None = _MANUAL_COMPONENT_CHAR_LIMIT,
+    section_char_budget: int | None = None,
+    seen_names: set[str] | None = None,
+) -> str:
     """Format a list of manual chunks into deduplicated text blocks.
 
     Full component text is included — manual chunks are already scoped
@@ -162,15 +271,30 @@ def _format_manual_section(manual_results: list[dict]) -> str:
         Formatted text, or empty string if no results.
     """
     sections: list[str] = []
-    seen: set[str] = set()
+    seen = seen_names if seen_names is not None else set()
+    used_chars = 0
     for r in manual_results:
         name = r["component_name"]
         if name in seen:
             continue
-        seen.add(name)
         category = r.get("category", "")
-        text = r.get("text", "")
-        sections.append(f"[{name}] ({category})\n{text}")
+        raw_text = str(r.get("text", ""))
+        text = (
+            _truncate_text(raw_text, component_char_limit)
+            if component_char_limit is not None
+            else raw_text
+        )
+        section = f"[{name}] ({category})\n{text}"
+        if section_char_budget is not None and used_chars + len(section) > section_char_budget:
+            remaining = section_char_budget - used_chars
+            if remaining < 200:
+                break
+            section = _truncate_text(section, remaining)
+        sections.append(section)
+        seen.add(name)
+        used_chars += len(section)
+        if section_char_budget is not None and used_chars >= section_char_budget:
+            break
     return "\n\n".join(sections)
 
 
@@ -178,6 +302,8 @@ def build_manual_reference_context(
     exemplar_chunks: list[dict],
     tonal_chunks: list[dict] | None = None,
     gap_chunks: list[dict] | None = None,
+    *,
+    budgeted: bool = True,
 ) -> str:
     """Format manual chunks into three labelled sections for the prompt.
 
@@ -192,18 +318,34 @@ def build_manual_reference_context(
         three clearly labelled sections.
     """
     parts: list[str] = []
+    seen_names: set[str] = set()
 
-    ex_text = _format_manual_section(exemplar_chunks)
+    ex_text = _format_manual_section(
+        exemplar_chunks,
+        component_char_limit=_MANUAL_COMPONENT_CHAR_LIMIT if budgeted else None,
+        section_char_budget=_MANUAL_SECTION_CHAR_BUDGETS["exemplar"] if budgeted else None,
+        seen_names=seen_names if budgeted else None,
+    )
     if ex_text:
         parts.append(f"--- COMPONENTS FROM EXEMPLARS ---\n{ex_text}")
 
     if tonal_chunks:
-        tonal_text = _format_manual_section(tonal_chunks)
+        tonal_text = _format_manual_section(
+            tonal_chunks,
+            component_char_limit=_MANUAL_COMPONENT_CHAR_LIMIT if budgeted else None,
+            section_char_budget=_MANUAL_SECTION_CHAR_BUDGETS["tonal"] if budgeted else None,
+            seen_names=seen_names if budgeted else None,
+        )
         if tonal_text:
             parts.append(f"--- TONALLY RELEVANT ALTERNATIVES ---\n{tonal_text}")
 
     if gap_chunks:
-        gap_text = _format_manual_section(gap_chunks)
+        gap_text = _format_manual_section(
+            gap_chunks,
+            component_char_limit=_MANUAL_COMPONENT_CHAR_LIMIT if budgeted else None,
+            section_char_budget=_MANUAL_SECTION_CHAR_BUDGETS["gap"] if budgeted else None,
+            seen_names=seen_names if budgeted else None,
+        )
         if gap_text:
             parts.append(f"--- GAP-FILLING CANDIDATES ---\n{gap_text}")
 
@@ -214,6 +356,9 @@ def build_component_schema_context(
     component_names: list[str],
     schema: dict,
     annotations: dict[str, dict[str, dict]] | None = None,
+    *,
+    compact: bool = True,
+    include_annotation_descriptions: bool = False,
 ) -> str:
     """Format parameter definitions for candidate components.
 
@@ -241,7 +386,7 @@ def build_component_schema_context(
         if name not in schema:
             continue
         entry = schema[name]
-        lines = [f"[{name}] (component_id: {entry['component_id']})"]
+        lines = [f"[{name}] id={entry['component_id']}"]
         comp_anns = annotations.get(name, {})
         for param in entry.get("parameters", []):
             pid = param["param_id"]
@@ -252,13 +397,17 @@ def build_component_schema_context(
             hi = stats.get("max", 1.0)
             median = stats.get("median", default)
 
-            line = (
-                f"  {pid} | {pname} | default: {default} | range: [{lo}, {hi}] | median: {median}"
-            )
+            if compact:
+                line = f"  {pid} | default={default} | range={lo}..{hi} | median={median}"
+            else:
+                line = (
+                    f"  {pid} | {pname} | default: {default} | "
+                    f"range: [{lo}, {hi}] | median: {median}"
+                )
 
             ann = comp_anns.get(pid, {})
             suffix_parts: list[str] = []
-            if "description" in ann:
+            if include_annotation_descriptions and "description" in ann:
                 suffix_parts.append(ann["description"])
             if "boundary" in ann:
                 suffix_parts.append(ann["boundary"])
@@ -268,6 +417,59 @@ def build_component_schema_context(
             lines.append(line)
         sections.append("\n".join(lines))
     return "\n\n".join(sections) if sections else "(no schema available)"
+
+
+def select_schema_component_names(
+    *,
+    exemplar_component_names: set[str],
+    tonal_chunks: list[dict],
+    gap_chunks: list[dict],
+    parsed: ParsedSignalChain,
+) -> list[str]:
+    """Select high-value schema entries while capping broad gap-fill candidates."""
+    selected: set[str] = set(exemplar_component_names)
+    selected.update(str(r["component_name"]) for r in tonal_chunks)
+    selected.update(
+        unit.gr_equivalent
+        for section in parsed.sections
+        for unit in section.units
+        if unit.gr_equivalent
+    )
+    selected.update({_MATCHED_CABINET_PRO_NAME, *_CONTROL_ROOM_NAMES})
+
+    gap_by_category: dict[str, int] = {}
+    for row in gap_chunks:
+        category = str(row.get("category", ""))
+        if gap_by_category.get(category, 0) >= _GAP_SCHEMA_PER_CATEGORY:
+            continue
+        selected.add(str(row["component_name"]))
+        gap_by_category[category] = gap_by_category.get(category, 0) + 1
+
+    return sorted(selected)
+
+
+def _approximate_tokens(text: str) -> int:
+    return max(1, len(text) // _PHASE2_TOKEN_CHAR_DIVISOR) if text else 0
+
+
+def record_phase2_context_metrics(contexts: dict[str, str], full_prompt: str) -> None:
+    """Record prompt block sizes without storing prompt text."""
+    for name, text in {**contexts, "FULL_PHASE2_PROMPT": full_prompt}.items():
+        record_context_block(
+            LLMContextBlockMetric(
+                operation=_PHASE2_CONTEXT_OPERATION,
+                block_name=name,
+                char_count=len(text),
+                approximate_tokens=_approximate_tokens(text),
+            )
+        )
+    full_prompt_tokens = _approximate_tokens(full_prompt)
+    if full_prompt_tokens > settings.phase2_prompt_budget_tokens:
+        _log.info(
+            "Phase 2 prompt estimate exceeds target budget: approximate_tokens=%d target=%d",
+            full_prompt_tokens,
+            settings.phase2_prompt_budget_tokens,
+        )
 
 
 def build_cabinet_lookup_context(amp_cabinet_lookup: dict[str, dict]) -> str:
@@ -585,6 +787,7 @@ def map_components(
     schema = load_schema()
     amp_cabinet_lookup = load_amp_cabinet_lookup()
     annotations = load_annotations()
+    name_lookup = build_name_lookup(schema)
 
     # Pre-extract tags and component names from the already-parsed output
     pre_tags = parsed.tags_characters + parsed.tags_genres
@@ -599,29 +802,34 @@ def map_components(
     for ex in exemplars:
         for comp in ex.get("components", []):
             exemplar_component_names.add(comp["component_name"])
-
     # 3. Manual descriptions for exemplar components
-    manual_for_exemplars = get_manual_chunks_for_components(exemplar_component_names)
+    manual_for_exemplars = _canonicalize_manual_chunk_names(
+        get_manual_chunks_for_components(_expand_manual_lookup_names(exemplar_component_names)),
+        name_lookup,
+    )
 
     # 4. Manual descriptions for categories the exemplars may lack
-    manual_for_additions = search_manual_for_categories(
-        signal_chain, exclude_names=exemplar_component_names
+    manual_for_additions = _canonicalize_manual_chunk_names(
+        search_manual_for_categories(signal_chain, exclude_names=exemplar_component_names),
+        name_lookup,
     )
 
     # 4b. Tonal similarity search — swap candidates across all categories
-    manual_for_tonal = search_manual_by_tonal_target(
-        signal_chain,
-        top_n=5,
-        exclude_names=exemplar_component_names,
+    manual_for_tonal = _canonicalize_manual_chunk_names(
+        search_manual_by_tonal_target(
+            signal_chain,
+            top_n=5,
+            exclude_names=exemplar_component_names,
+        ),
+        name_lookup,
     )
 
-    # 5. Collect all component names that need schema entries
-    all_component_names = list(
-        exemplar_component_names
-        | {r["component_name"] for r in manual_for_additions}
-        | {r["component_name"] for r in manual_for_tonal}
-        | {_MATCHED_CABINET_PRO_NAME}
-        | _CONTROL_ROOM_NAMES
+    # 5. Collect high-priority component names that need schema entries.
+    all_component_names = select_schema_component_names(
+        exemplar_component_names=exemplar_component_names,
+        tonal_chunks=manual_for_tonal,
+        gap_chunks=manual_for_additions,
+        parsed=parsed,
     )
 
     # 6. Build prompt — inject compact tonal target instead of raw text
@@ -636,16 +844,21 @@ def map_components(
     crp_context = build_crp_reference_context()
     tonal_descriptor_context = format_tonal_descriptors()
 
+    prompt_context = {
+        "SIGNAL_CHAIN": tonal_target,
+        "EXEMPLAR_PRESETS": exemplar_context,
+        "MANUAL_REFERENCE": manual_context,
+        "COMPONENT_SCHEMA": schema_context,
+        "CABINET_LOOKUP": cabinet_context,
+        "CRP_REFERENCE": crp_context,
+        "TONAL_DESCRIPTORS": tonal_descriptor_context,
+    }
+
     prompt = render_prompt(
         "exemplar_refinement_prompt",
-        SIGNAL_CHAIN=tonal_target,
-        EXEMPLAR_PRESETS=exemplar_context,
-        MANUAL_REFERENCE=manual_context,
-        COMPONENT_SCHEMA=schema_context,
-        CABINET_LOOKUP=cabinet_context,
-        CRP_REFERENCE=crp_context,
-        TONAL_DESCRIPTORS=tonal_descriptor_context,
+        **prompt_context,
     )
+    record_phase2_context_metrics(prompt_context, prompt)
 
     # 8. Phase 2 LLM call
     resolved_model = model or settings.default_model
@@ -702,8 +915,8 @@ def map_components(
     )
 
     # 9. Resolve LLM component names to canonical schema names.
-    name_lookup = build_name_lookup(schema)
     components = resolve_component_names(components, name_lookup)
+    components = repair_component_identities(components, schema)
 
     # 9a. Extract LLM cabinet params BEFORE fill_defaults so we can
     # distinguish explicit LLM choices from schema-default backfills.

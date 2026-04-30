@@ -6,5 +6,27 @@
   "control_room_chain": {
     "required_components": ["Control Room Pro"],
     "checks": ["known_component_ids", "crp_integer_enums", "no_duplicate_cabinet"]
+  },
+  "focused_clean_jazz": {
+    "expected_component_types": ["clean_amp", "cabinet", "reverb"],
+    "checks": ["known_component_ids", "known_parameter_ids", "cabinet_after_amp"]
+  },
+  "full_production_solo": {
+    "expected_component_types": ["drive_or_boost", "amp", "cabinet", "delay_or_reverb"],
+    "checks": [
+      "known_component_ids",
+      "known_parameter_ids",
+      "post_cabinet_effects_after_cabinet"
+    ]
+  },
+  "effects_heavy_shoegaze": {
+    "expected_component_types": [
+      "fuzz_or_distortion",
+      "modulation",
+      "amp",
+      "cabinet",
+      "reverb_or_delay"
+    ],
+    "checks": ["known_component_ids", "known_parameter_ids", "no_duplicate_cabinet"]
   }
 }

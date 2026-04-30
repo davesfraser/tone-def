@@ -22,8 +22,12 @@ from tonedef.component_mapper import (
     build_manual_reference_context,
     build_name_lookup,
     fill_defaults,
+    record_phase2_context_metrics,
+    repair_component_identities,
     resolve_component_names,
+    select_schema_component_names,
 )
+from tonedef.llm_usage import collect_llm_usage
 from tonedef.signal_chain_parser import ParsedSignalChain, Section, Unit
 
 # ---------------------------------------------------------------------------
@@ -66,7 +70,7 @@ def test_manual_reference_context_no_truncation() -> None:
     """Full text is passed through without truncation."""
     long_text = "A" * 2000
     long = [{"component_name": "Amp", "category": "Amps", "text": long_text}]
-    result = build_manual_reference_context(exemplar_chunks=long)
+    result = build_manual_reference_context(exemplar_chunks=long, budgeted=False)
     assert "..." not in result
     assert long_text in result
 
@@ -100,6 +104,23 @@ def test_manual_reference_context_omits_empty_sections() -> None:
     assert "COMPONENTS FROM EXEMPLARS" in result
     assert "TONALLY RELEVANT" not in result
     assert "GAP-FILLING" not in result
+
+
+def test_manual_reference_context_budget_truncates_and_deduplicates() -> None:
+    long = "word " * 800
+    exemplar = [{"component_name": "Echo", "category": "Delay", "text": long}]
+    tonal = [{"component_name": "Echo", "category": "Delay", "text": "duplicate"}]
+    gap = [{"component_name": "Reverb", "category": "Reverb", "text": long}]
+
+    result = build_manual_reference_context(
+        exemplar_chunks=exemplar,
+        tonal_chunks=tonal,
+        gap_chunks=gap,
+    )
+
+    assert result.count("[Echo]") == 1
+    assert "[Reverb]" in result
+    assert "[truncated for prompt budget]" in result
 
 
 # ---------------------------------------------------------------------------
@@ -148,17 +169,22 @@ def test_build_component_schema_context_includes_component() -> None:
 def test_build_component_schema_context_includes_param() -> None:
     result = build_component_schema_context(["Tweed Delight"], _SCHEMA)
     assert "vb" in result
-    assert "Bright" in result
+    assert "Bright" not in result
 
 
 def test_build_component_schema_context_includes_stats() -> None:
     result = build_component_schema_context(["Tweed Delight"], _SCHEMA)
-    assert "range: [0.0, 1.0]" in result
-    assert "median: 0.5" in result
+    assert "range=0.0..1.0" in result
+    assert "median=0.5" in result
 
 
 def test_build_component_schema_context_includes_annotation() -> None:
-    result = build_component_schema_context(["Tweed Delight"], _SCHEMA, _ANNOTATIONS)
+    result = build_component_schema_context(
+        ["Tweed Delight"],
+        _SCHEMA,
+        _ANNOTATIONS,
+        include_annotation_descriptions=True,
+    )
     assert "Adds brightness to the tone." in result
 
 
@@ -178,14 +204,77 @@ def test_build_component_schema_context_includes_boundary() -> None:
     }
     result = build_component_schema_context(["Solid EQ"], schema, _ANNOTATIONS)
     assert "0.0 = filter off" in result
-    assert "HPF cutoff 30-600Hz." in result
+    assert "HPF cutoff 30-600Hz." not in result
+
+
+def test_build_component_schema_context_can_include_verbose_descriptions() -> None:
+    result = build_component_schema_context(
+        ["Tweed Delight"],
+        _SCHEMA,
+        _ANNOTATIONS,
+        include_annotation_descriptions=True,
+    )
+    assert "Adds brightness to the tone." in result
 
 
 def test_build_component_schema_context_without_annotations() -> None:
     result = build_component_schema_context(["Tweed Delight"], _SCHEMA, None)
-    assert "range: [0.0, 1.0]" in result
+    assert "range=0.0..1.0" in result
     # No annotation suffix
     assert "brightness" not in result.lower()
+
+
+def test_select_schema_component_names_caps_gap_components() -> None:
+    parsed = ParsedSignalChain(
+        chain_type="AMP_ONLY",
+        chain_type_reason="test",
+        sections=[
+            Section(
+                title="Signal Chain",
+                units=[
+                    Unit(
+                        name="Marshall",
+                        unit_type="amp",
+                        provenance="DOCUMENTED",
+                        gr_equivalent="Lead 800",
+                    )
+                ],
+            )
+        ],
+    )
+    names = select_schema_component_names(
+        exemplar_component_names={"Skreamer"},
+        tonal_chunks=[{"component_name": "PsycheDelay", "category": "Delay"}],
+        gap_chunks=[
+            {"component_name": "Studio Reverb", "category": "Reverb"},
+            {"component_name": "Spring Reverb", "category": "Reverb"},
+            {"component_name": "Fast Comp", "category": "Dynamics"},
+        ],
+        parsed=parsed,
+    )
+
+    assert "Skreamer" in names
+    assert "Lead 800" in names
+    assert "PsycheDelay" in names
+    assert "Studio Reverb" in names
+    assert "Fast Comp" in names
+    assert "Spring Reverb" not in names
+    assert "Matched Cabinet Pro" in names
+    assert "Control Room Pro" in names
+
+
+def test_record_phase2_context_metrics_stores_only_counts() -> None:
+    with collect_llm_usage() as usage:
+        record_phase2_context_metrics({"SIGNAL_CHAIN": "secret prompt text"}, "full prompt")
+
+    summary = usage.summary()
+    assert [m.block_name for m in summary.context_blocks] == [
+        "SIGNAL_CHAIN",
+        "FULL_PHASE2_PROMPT",
+    ]
+    assert summary.context_blocks[0].char_count == len("secret prompt text")
+    assert summary.context_blocks[0].approximate_tokens > 0
+    assert not hasattr(summary.context_blocks[0], "content")
 
 
 def test_build_component_schema_context_empty_names() -> None:
@@ -845,6 +934,76 @@ def test_resolve_unknown_name_unchanged() -> None:
     assert comps[0]["component_name"] == "Totally Fake"
 
 
+_IDENTITY_SCHEMA: dict = {
+    "Wahwah": {
+        "component_id": 21000,
+        "parameters": [
+            {"param_id": "Pwr", "param_name": "On/Off", "default_value": 1.0},
+            {"param_id": "Pd", "param_name": "Wah", "default_value": 0.5},
+        ],
+    },
+    "Doppel-Filter": {
+        "component_id": 161000,
+        "parameters": [
+            {"param_id": "Pwr", "param_name": "On/Off", "default_value": 1.0},
+            {"param_id": "cutoff_a", "param_name": "Cutoff A", "default_value": 0.5},
+            {"param_id": "res_a", "param_name": "Resonance A", "default_value": 0.3},
+            {"param_id": "drive_a", "param_name": "Drive A", "default_value": 1.0},
+            {"param_id": "series_parallel", "param_name": "Routing", "default_value": 0.0},
+        ],
+    },
+}
+
+
+def test_repair_component_identity_wahwah_doppel_filter_drift() -> None:
+    components = [
+        {
+            "component_name": "Wahwah",
+            "component_id": 161000,
+            "parameters": {
+                "cutoff_a": 0.45,
+                "res_a": 0.6,
+                "drive_a": 0.2,
+                "series_parallel": 0.0,
+            },
+        }
+    ]
+
+    result = repair_component_identities(components, _IDENTITY_SCHEMA)
+
+    assert result[0]["component_name"] == "Doppel-Filter"
+    assert result[0]["component_id"] == 161000
+
+
+def test_repair_component_identity_unknown_id_stays_invalid() -> None:
+    components = [
+        {
+            "component_name": "Wahwah",
+            "component_id": 999999,
+            "parameters": {"cutoff_a": 0.45},
+        }
+    ]
+
+    result = repair_component_identities(components, _IDENTITY_SCHEMA)
+
+    assert result[0]["component_name"] == "Wahwah"
+    assert result[0]["component_id"] == 999999
+
+
+def test_repair_component_identity_mixed_parameters_are_not_guessed() -> None:
+    components = [
+        {
+            "component_name": "Wahwah",
+            "component_id": 161000,
+            "parameters": {"Pd": 0.4, "cutoff_a": 0.45},
+        }
+    ]
+
+    result = repair_component_identities(components, _IDENTITY_SCHEMA)
+
+    assert result[0]["component_name"] == "Wahwah"
+
+
 def test_cabinet_ordering_with_multiple_post_effects() -> None:
     """Multiple post-cabinet effects preserve their relative order."""
     components = [
@@ -1066,3 +1225,82 @@ def test_map_components_uses_rendered_prompt_and_shared_client(monkeypatch) -> N
             "temperature": settings.phase2_temperature,
         }
     ]
+
+
+def test_map_components_includes_schema_for_all_exemplar_components(monkeypatch) -> None:
+    from tonedef import component_mapper
+
+    render_contexts: list[dict[str, object]] = []
+    parsed = ParsedSignalChain(
+        chain_type="AMP_ONLY",
+        chain_type_reason="test target",
+        sections=[],
+    )
+    schema = {
+        "Comp A": {
+            "component_id": 100,
+            "parameters": [{"param_id": "a", "param_name": "A", "default_value": 0.5}],
+        },
+        "Comp B": {
+            "component_id": 200,
+            "parameters": [{"param_id": "b", "param_name": "B", "default_value": 0.5}],
+        },
+        "Matched Cabinet Pro": {
+            "component_id": 156000,
+            "parameters": [{"param_id": "Cab", "param_name": "Cabinet", "default_value": 0}],
+        },
+    }
+    exemplars = [
+        {
+            "preset_name": "one",
+            "tags": [],
+            "components": [{"component_name": "Comp A", "component_id": 100, "parameters": {}}],
+        },
+        {
+            "preset_name": "two",
+            "tags": [],
+            "components": [{"component_name": "Comp B", "component_id": 200, "parameters": {}}],
+        },
+    ]
+
+    monkeypatch.setattr(component_mapper, "load_schema", lambda: schema)
+    monkeypatch.setattr(component_mapper, "load_amp_cabinet_lookup", dict)
+    monkeypatch.setattr(component_mapper, "load_annotations", dict)
+    monkeypatch.setattr(component_mapper, "search_exemplars", lambda *args, **kwargs: exemplars)
+    monkeypatch.setattr(component_mapper, "get_manual_chunks_for_components", lambda names: [])
+    monkeypatch.setattr(
+        component_mapper, "search_manual_for_categories", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(
+        component_mapper, "search_manual_by_tonal_target", lambda *args, **kwargs: []
+    )
+    monkeypatch.setattr(component_mapper, "build_crp_reference_context", lambda: "crp reference")
+    monkeypatch.setattr(component_mapper, "format_tonal_descriptors", lambda: "tonal descriptors")
+
+    def fake_render_prompt(name: str, **context: object) -> str:
+        render_contexts.append(context)
+        return "rendered"
+
+    monkeypatch.setattr(component_mapper, "render_prompt", fake_render_prompt)
+    monkeypatch.setattr(
+        component_mapper.llm_client,
+        "complete",
+        lambda *args, **kwargs: (
+            """[
+          {
+            "component_name": "Comp A",
+            "component_id": 100,
+            "base_exemplar": "one",
+            "modification": "unchanged",
+            "confidence": "documented",
+            "parameters": {"a": 0.5}
+          }
+        ]"""
+        ),
+    )
+
+    component_mapper.map_components("raw", parsed, model="test/model")
+
+    schema_context = str(render_contexts[0]["COMPONENT_SCHEMA"])
+    assert "[Comp A] id=100" in schema_context
+    assert "[Comp B] id=200" in schema_context

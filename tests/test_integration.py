@@ -139,7 +139,12 @@ def test_full_pipeline_produces_ngrr_bytes(monkeypatch: pytest.MonkeyPatch) -> N
         },
     ]
 
-    with patch("tonedef.component_mapper.search_exemplars", return_value=fake_exemplars):
+    with (
+        patch("tonedef.component_mapper.search_exemplars", return_value=fake_exemplars),
+        patch("tonedef.component_mapper.get_manual_chunks_for_components", return_value=[]),
+        patch("tonedef.component_mapper.search_manual_for_categories", return_value=[]),
+        patch("tonedef.component_mapper.search_manual_by_tonal_target", return_value=[]),
+    ):
         from tonedef.component_mapper import map_components
 
         components, _exemplars = map_components(raw, parsed)
