@@ -30,6 +30,7 @@ from tonedef.schemas import ComponentOutput
 from tonedef.signal_chain_parser import ParsedSignalChain, parse_signal_chain
 from tonedef.tonal_vocab import get_all_selected_terms, get_ui_groups, load_descriptor_meta
 from tonedef.validation import (
+    ValidationResult,
     validate_parameter_intent,
     validate_phase1,
     validate_phase2,
@@ -54,6 +55,7 @@ _DEFAULTS: dict[str, object] = {
     "signal_chain_raw": None,
     "signal_chain_parsed": None,
     "phase1_validation": None,
+    "build_validation": None,
     "components": None,
     "exemplars": None,
     "llm_usage_summary": None,
@@ -77,6 +79,7 @@ def _clear_results() -> None:
     st.session_state.signal_chain_raw = None
     st.session_state.signal_chain_parsed = None
     st.session_state.phase1_validation = None
+    st.session_state.build_validation = None
     st.session_state.components = None
     st.session_state.exemplars = None
     st.session_state.llm_usage_summary = None
@@ -84,6 +87,31 @@ def _clear_results() -> None:
     st.session_state.preset_name = "ToneDef Preset"
     st.session_state.pop("_last_built_name", None)
     st.session_state.selected_modifiers = {}
+
+
+def _validate_components_for_build(
+    components: list[dict],
+    tonal_target: str,
+) -> ValidationResult:
+    """Run all hard pre-build checks used by the UI download gate."""
+    result = ValidationResult()
+    validated: list[ComponentOutput] = []
+    for index, component in enumerate(components):
+        try:
+            validated.append(ComponentOutput.model_validate(component))
+        except Exception as exc:
+            result.errors.append(f"Component {index + 1} failed schema validation: {exc}")
+
+    if not validated:
+        return result
+
+    schema = load_schema()
+    annotations = load_annotations()
+    phase2 = validate_phase2(validated, schema)
+    order = validate_signal_chain_order(validated, load_amp_cabinet_lookup())
+    pre_build = validate_pre_build(validated)
+    intent = validate_parameter_intent(validated, annotations, tonal_target)
+    return result.merge(phase2).merge(order).merge(pre_build).merge(intent)
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +202,17 @@ if _has_results:
             for _w in _all_v.warnings:
                 st.warning(_w, icon="⚠️")
 
+    _build_validation = st.session_state.build_validation
+    if _build_comps and _build_validation is None:
+        _build_validation = _validate_components_for_build(
+            _build_comps,
+            st.session_state.signal_chain_raw or "",
+        )
+        st.session_state.build_validation = _build_validation
+    _has_blocking_validation_errors = bool(
+        _build_validation is not None and _build_validation.errors
+    )
+
     # Similar presets analysed
     render_similar_presets(st.session_state.exemplars)
 
@@ -192,6 +231,18 @@ if _has_results:
         )
 
         with st.expander("LLM usage details"):
+            if usage_summary.context_blocks:
+                block_rows = [
+                    {
+                        "Block": b.block_name,
+                        "Characters": b.char_count,
+                        "Approx. tokens": b.approximate_tokens,
+                    }
+                    for b in usage_summary.context_blocks
+                ]
+                st.caption("Phase 2 prompt block sizes")
+                st.table(block_rows)
+
             rows = [
                 {
                     "Operation": r.operation,
@@ -232,6 +283,15 @@ if _has_results:
         max_chars=64,
     )
     st.session_state.preset_name = preset_name
+
+    if _has_blocking_validation_errors:
+        st.session_state.preset_bytes = None
+        st.session_state["_last_built_name"] = None
+        st.error(
+            "Preset file blocked because generated component IDs or parameters do not "
+            "match the Guitar Rig schema. Regenerate the tone before downloading."
+        )
+        st.stop()
 
     if st.session_state.preset_bytes is None or preset_name != st.session_state.get(
         "_last_built_name"
@@ -276,8 +336,19 @@ elif st.session_state.processing:
             components, exemplars = map_components(raw, parsed_result)
             st.session_state.components = components
             st.session_state.exemplars = exemplars
+            st.session_state.build_validation = _validate_components_for_build(
+                components,
+                raw,
+            )
 
         st.session_state.llm_usage_summary = llm_usage.summary()
+
+        if st.session_state.build_validation.errors:
+            st.session_state.preset_bytes = None
+            st.session_state["_last_built_name"] = None
+            st.session_state.processing = False
+            status.update(label="Done with validation errors", state="error")
+            st.rerun()
 
         st.write("📦 Preparing preset...")
         name = auto_preset_name(st.session_state.query)

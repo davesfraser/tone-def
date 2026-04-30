@@ -196,6 +196,9 @@ confidence values:
   "estimated"  — component added or swapped without factory precedent
 
 Constraints:
+- component_name, component_id, and every parameter key must all come from
+  the same component_schema block. Never combine a name from one component
+  with the id or parameters from another.
 - All param_id keys must exactly match those in the component_schema.
 - All parameter values must be floats in the range [0.0, 1.0], EXCEPT:
   * Cab on Matched Cabinet Pro - integer enum (0-25)

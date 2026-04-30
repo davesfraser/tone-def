@@ -84,8 +84,13 @@ def test_preset_component_validity_fixture_contract() -> None:
     golden = _read_json_object(_FIXTURE_PAIRS["preset_component_validity"][1])
 
     for row in rows:
-        _assert_keys(row, ["id", "input_components", "required_components", "assertions"])
         expected = golden[str(row["id"])]
         assert isinstance(expected, dict)
-        assert expected["required_components"] == row["required_components"]
-        assert expected["checks"] == row["assertions"]
+        if "input_components" in row:
+            _assert_keys(row, ["id", "input_components", "required_components", "assertions"])
+            assert expected["required_components"] == row["required_components"]
+            assert expected["checks"] == row["assertions"]
+        else:
+            _assert_keys(row, ["id", "query", "expected_component_types", "required_assertions"])
+            assert expected["expected_component_types"] == row["expected_component_types"]
+            assert expected["checks"] == row["required_assertions"]

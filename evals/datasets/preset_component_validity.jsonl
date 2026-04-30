@@ -1,2 +1,5 @@
 {"id":"lead800_basic_chain","input_components":["Skreamer","Lead 800"],"required_components":["Matched Cabinet Pro"],"assertions":["known_component_ids","known_parameter_ids","cabinet_after_amp"]}
 {"id":"control_room_chain","input_components":["Lead 800","Control Room Pro"],"required_components":["Control Room Pro"],"assertions":["known_component_ids","crp_integer_enums","no_duplicate_cabinet"]}
+{"id":"focused_clean_jazz","query":"Clean jazzy tone with warm reverb","expected_component_types":["clean_amp","cabinet","reverb"],"required_assertions":["known_component_ids","known_parameter_ids","cabinet_after_amp"]}
+{"id":"full_production_solo","query":"Pink Floyd — Comfortably Numb solo","expected_component_types":["drive_or_boost","amp","cabinet","delay_or_reverb"],"required_assertions":["known_component_ids","known_parameter_ids","post_cabinet_effects_after_cabinet"]}
+{"id":"effects_heavy_shoegaze","query":"Shoegaze wall-of-sound like My Bloody Valentine","expected_component_types":["fuzz_or_distortion","modulation","amp","cabinet","reverb_or_delay"],"required_assertions":["known_component_ids","known_parameter_ids","no_duplicate_cabinet"]}

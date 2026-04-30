@@ -55,6 +55,8 @@ class Settings(BaseSettings):
 
     cost_budget_usd: float = Field(default=5.0, ge=0.0)
     latency_budget_seconds: float = Field(default=30.0, gt=0.0)
+    phase2_prompt_budget_tokens: int = Field(default=45000, ge=1)
+    phase2_prompt_cache_enabled: bool = Field(default=False)
 
     # Set a fixed random seed for reproducibility
     random_seed: int = Field(default=42)
